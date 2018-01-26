@@ -12,9 +12,18 @@ import java.util.Map;
  */
 public class KubeMeta extends Model {
 	
+	private String generateName;
 	private String name;
 	private String namespace;
 	private Map<String, String> labels = new LinkedHashMap<String, String>();
+
+	public String getGenerateName() {
+		return generateName;
+	}
+
+	public void setGenerateName(String generateName) {
+		this.generateName = generateName;
+	}
 
 	public String getName() {
 		return name;

@@ -44,6 +44,8 @@ items:
   kind: KubeNode
   metadata:
     generateName: node-
+    labels:
+      type: master
   spec:
     type: master
     ipAddress: "$ip_address"
