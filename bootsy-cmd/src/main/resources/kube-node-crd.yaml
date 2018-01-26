@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: List
+items:
+- apiVersion: apiextensions.k8s.io/v1beta1
+  kind: CustomResourceDefinition
+  metadata:
+    name: kubenodes.bootsy.flyover.com
+  spec:
+    scope: Cluster
+    group: bootsy.flyover.com
+    version: v1
+    names:
+      kind: KubeNode
+      plural: kubenodes
+      singular: kubenode
+      shortNames: [ kn ]
+- apiVersion: apiextensions.k8s.io/v1beta1
+  kind: CustomResourceDefinition
+  metadata:
+    name: kubenodecontroller.bootsy.flyover.com
+  spec:
+    scope: Cluster
+    group: bootsy.flyover.com
+    version: v1
+    names:
+      kind: KubeNodeController
+      plural: kubenodecontrollers
+      singular: kubenodecontroller
+      shortNames: [ knc ]
+- apiVersion: bootsy.flyover.com/v1
+  kind: KubeNode
+  metadata:
+    generateName: node-
+  spec:
+    type: master
+    ipAddress: "$ip_address"
+    version: "$version"
+    connector:
+      type: ssh
+      authSecret:
+        namespace: bootsy
+        name: "$auth_secret_name"

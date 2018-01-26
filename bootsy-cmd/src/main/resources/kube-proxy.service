@@ -1,0 +1,9 @@
+[Unit]
+Description=kube-proxy
+
+[Service]
+ExecStart=/usr/bin/kube-proxy --bind-address=0.0.0.0 --master=http://localhost:8080
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
