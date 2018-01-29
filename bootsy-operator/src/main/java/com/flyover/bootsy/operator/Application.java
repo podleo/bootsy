@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
+import com.flyover.bootsy.operator.provders.Provider;
+import com.flyover.bootsy.operator.provders.centurylink.CenturyLinkProvider;
 
 /**
  * @author mramach
@@ -27,6 +29,11 @@ public class Application {
 	@Bean
 	public KubeAdapter kubeAdapter() {
 		return new KubeAdapter("http://10.82.98.33:8080");
+	}
+	
+	@Bean
+	public Provider centurylink() {
+		return new CenturyLinkProvider();
 	}
 	
 	@Bean

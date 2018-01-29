@@ -5,6 +5,7 @@ package com.flyover.bootsy.operator;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
@@ -15,6 +16,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
 import com.flyover.bootsy.operator.k8s.KubeNode;
 import com.flyover.bootsy.operator.k8s.KubeNodeController;
+import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
+import com.flyover.bootsy.operator.provders.Provider;
 
 /**
  * @author mramach
@@ -26,6 +29,8 @@ public class Operator {
 	
 	@Autowired
 	private KubeAdapter kubeAdapter;
+	@Autowired
+	private List<Provider> providers;
 
 	@Scheduled(fixedDelay = 5000L, initialDelay = 0L)
 	public void controllerLoop() {
@@ -72,6 +77,50 @@ public class Operator {
 	private void processKubeNode(KubeNode kn) {
 		
 		LOG.debug("processing node node {}", kn.getMetadata().getName());
+		
+		KubeNodeProvider knp = kubeAdapter.getKubeNodeProvider(
+			Optional.ofNullable(kn.getSpec().getProvider()).orElse("not_provided"));
+		
+		if(knp == null) {
+			
+			LOG.debug("provider with name {} not found could not process node {}", 
+				kn.getSpec().getProvider(), kn.getMetadata().getName());
+			
+			return;
+			
+		}
+		
+		Provider provider = providers.stream()
+			.filter(p -> p.name().equals(knp.getSpec().getType()))
+			.findFirst()
+				.orElse(null);
+		
+		if(provider == null) {
+			
+			LOG.debug("provider type with name {} is not currently available in the system", knp.getSpec().getType());
+				
+			return;
+			
+		}
+		
+		if(!provider.instanceCreated(knp, kn)) {
+			
+			LOG.debug("an istance will be created for KubeNode {}", kn.getMetadata().getName());
+			// create the instance using the requested provider
+			provider.createInstance(knp, kn);
+			
+		}
+		
+		if(!provider.instanceReady(knp, kn)) {
+			
+			LOG.debug("an istance is not yet ready for KubeNode {}", kn.getMetadata().getName());
+			
+			return;
+			
+		}
+		
+		// check to see if the node has been prepped for initialization
+		
 		
 	}
 	

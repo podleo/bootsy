@@ -48,6 +48,7 @@ items:
       type: master
   spec:
     type: master
+    provider: bootstrap
     ipAddress: "$ip_address"
     version: "$version"
     connector:

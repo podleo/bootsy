@@ -3,6 +3,9 @@
  */
 package com.flyover.bootsy.operator.k8s;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * @author mramach
  *
@@ -11,6 +14,9 @@ public class KubeNodeSpec extends Model {
 
 	private String type;
 	private String provider;
+	private KubeNodeConnector connector;
+	private String ipAddress;
+	private Map<String, Object> instanceInfo = new LinkedHashMap<>();
 
 	public String getType() {
 		return type;
@@ -26,6 +32,30 @@ public class KubeNodeSpec extends Model {
 
 	public void setProvider(String provider) {
 		this.provider = provider;
+	}
+
+	public Map<String, Object> getInstanceInfo() {
+		return instanceInfo;
+	}
+
+	public void setInstanceInfo(Map<String, Object> instanceInfo) {
+		this.instanceInfo = instanceInfo;
+	}
+
+	public KubeNodeConnector getConnector() {
+		return connector;
+	}
+
+	public void setConnector(KubeNodeConnector connector) {
+		this.connector = connector;
+	}
+
+	public String getIpAddress() {
+		return ipAddress;
+	}
+
+	public void setIpAddress(String ipAddress) {
+		this.ipAddress = ipAddress;
 	}
 	
 }

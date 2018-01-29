@@ -1,0 +1,20 @@
+{
+  "name": "$name",
+  "description": "$description",
+  "groupId": "$groupId",
+  "sourceServerId": "$os",
+  "isManagedOS": false,
+  "networkId": "$networkId",
+  "password": "$password",
+  "cpu": $cpu,
+  "memoryGB": $memory,
+  "type": "standard",
+  "storageType": "standard",
+  "additionalDisks":[
+    {
+      "path": "/var/lib/docker",
+      "sizeGB": 50,
+      "type": "partitioned"
+    }
+  ]
+}

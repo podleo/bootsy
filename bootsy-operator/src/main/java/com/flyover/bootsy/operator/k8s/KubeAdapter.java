@@ -7,7 +7,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -54,6 +57,86 @@ public class KubeAdapter {
 		
 		return restTemplate.exchange(builder.build().toUri(), HttpMethod.POST, 
 				new HttpEntity<KubeNode>(kn), KubeNode.class).getBody();
+		
+	}
+	
+	public KubeNode updateKubeNode(KubeNode kn) {
+		
+		UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(String.format("%s/apis/bootsy.flyover.com/v1/kubenodes/", 
+                		endpoint, kn.getMetadata().getNamespace())).path(kn.getMetadata().getName());
+		
+		return restTemplate.exchange(builder.build().toUri(), HttpMethod.PUT, 
+				new HttpEntity<KubeNode>(kn), KubeNode.class).getBody();
+		
+	}
+	
+	public KubeNodeProvider getKubeNodeProvider(String name) {
+		
+		UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(String.format("%s/apis/bootsy.flyover.com/v1/kubenodeproviders/", endpoint))
+                	.path(name);
+		
+		try {
+			
+			return restTemplate.exchange(builder.build().toUri(), HttpMethod.GET, 
+					new HttpEntity<>(new HttpHeaders()), KubeNodeProvider.class).getBody();
+			
+		} catch (HttpClientErrorException e) {
+			
+			if(HttpStatus.NOT_FOUND.equals(e.getStatusCode())) {
+				return null;
+			}
+			
+			throw e;
+			
+		}
+		
+	}
+	
+
+	public Secret createSecret(Secret secret) {
+		
+		UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(String.format("%s/api/v1/namespaces/%s/secrets", 
+                		endpoint, secret.getMetadata().getNamespace()));
+		
+		try {
+			
+			return restTemplate.exchange(builder.build().toUri(), HttpMethod.POST, 
+					new HttpEntity<Secret>(secret), Secret.class).getBody();
+			
+		} catch (HttpClientErrorException e) {
+			
+			if(HttpStatus.CONFLICT.equals(e.getStatusCode())) {
+				return secret;
+			}
+			
+			throw e;
+			
+		}
+		
+	}
+	
+	public Secret getSecret(String namespace, String name) {
+		
+		UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(String.format("%s/api/v1/namespaces/%s/secrets/%s", endpoint, namespace, name));
+		
+		try {
+			
+			return restTemplate.exchange(builder.build().toUri(), HttpMethod.GET, 
+					new HttpEntity<>(new HttpHeaders()), Secret.class).getBody();
+			
+		} catch (HttpClientErrorException e) {
+			
+			if(HttpStatus.NOT_FOUND.equals(e.getStatusCode())) {
+				return null;
+			}
+			
+			throw e;
+			
+		}
 		
 	}
 
