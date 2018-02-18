@@ -2,7 +2,7 @@
 Description=kubelet
 
 [Service]
-ExecStart=/usr/bin/kubelet --address=0.0.0.0 --api-servers=http://localhost:8080 --allow-privileged=true --network-plugin=cni --node-labels=$node_labels
+ExecStart=/usr/bin/kubelet --address=0.0.0.0 --api-servers=$api_server_endpoint --allow-privileged=true --network-plugin=cni --node-labels=$node_labels
 Restart=always
 
 [Install]

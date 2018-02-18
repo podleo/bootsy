@@ -18,6 +18,7 @@ import com.flyover.bootsy.operator.k8s.KubeNode;
 import com.flyover.bootsy.operator.k8s.KubeNodeController;
 import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
 import com.flyover.bootsy.operator.provders.Provider;
+import com.flyover.bootsy.operator.ssh.Connection;
 
 /**
  * @author mramach
@@ -120,7 +121,69 @@ public class Operator {
 		}
 		
 		// check to see if the node has been prepped for initialization
+		if(!kn.getSpec().isDockerReady()) {
 		
+			LOG.debug("prepping docker for KubeNode {}", kn.getMetadata().getName());
+			
+			try {
+				
+				new Connection(kubeAdapter, kn).raw("sudo apt-get update");	
+				new Connection(kubeAdapter, kn).raw("sudo apt-get install apt-transport-https ca-certificates curl software-properties-common -y");
+				new Connection(kubeAdapter, kn).raw("curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -");
+				new Connection(kubeAdapter, kn).raw("sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"");
+				new Connection(kubeAdapter, kn).raw("sudo apt-get update");
+				new Connection(kubeAdapter, kn).raw("sudo apt-get install docker-ce=17.12.0~ce-0~ubuntu -y");
+
+				// mark docker as ready
+				kn.getSpec().setDockerReady(true);
+				// update the spec
+				kubeAdapter.updateKubeNode(kn);
+				
+			} catch (Exception e) {
+				LOG.error("failed during docker installation {}", e.getMessage()); 
+				// stop node actions
+				return;
+			}
+			
+		}
+		
+		// check to see if the kubelet has been initialized on the node.
+		if(!kn.getSpec().isKubeletReady()) {
+			
+			LOG.debug("prepping kubelet for KubeNode {}", kn.getMetadata().getName());
+			
+			// fetch master node ip address
+			KubeNode master = kubeAdapter.getKubeNodes(Collections.singletonMap("type", "master"))
+				.getItems().stream().findFirst().orElse(null);
+			
+			if(master == null) {
+				LOG.error("failed during kubelet installation, unable to determine kubernetes master node.");
+				// stop node actions
+				return ;
+			}
+			
+			String masterIpAddress = master.getSpec().getIpAddress();
+			
+			try {
+				
+				new Connection(kubeAdapter, kn).raw("docker pull portr.ctnr.ctl.io/markramach/bootsy-cmd:latest");
+				new Connection(kubeAdapter, kn).raw(String.format(
+						"docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
+						"portr.ctnr.ctl.io/markramach/bootsy-cmd:latest --init --type=node --api-server-endpoint=http://%s:8080", 
+							masterIpAddress));
+			
+				// mark kubelet as ready
+				kn.getSpec().setKubeletReady(true);
+				// update the spec
+				kubeAdapter.updateKubeNode(kn);
+				
+			} catch (Exception e) {
+				LOG.error("failed during kubelet installation {}", e.getMessage());
+				// stop node actions
+				return ;
+			}
+			
+		}
 		
 	}
 	

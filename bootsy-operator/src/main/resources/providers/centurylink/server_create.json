@@ -10,11 +10,5 @@
   "memoryGB": $memory,
   "type": "standard",
   "storageType": "standard",
-  "additionalDisks":[
-    {
-      "path": "/var/lib/docker",
-      "sizeGB": 50,
-      "type": "partitioned"
-    }
-  ]
+  "additionalDisks":[]
 }

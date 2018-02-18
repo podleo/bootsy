@@ -16,6 +16,8 @@ public class KubeNodeSpec extends Model {
 	private String provider;
 	private KubeNodeConnector connector;
 	private String ipAddress;
+	private boolean dockerReady = false;
+	private boolean kubeletReady = false;
 	private Map<String, Object> instanceInfo = new LinkedHashMap<>();
 
 	public String getType() {
@@ -56,6 +58,22 @@ public class KubeNodeSpec extends Model {
 
 	public void setIpAddress(String ipAddress) {
 		this.ipAddress = ipAddress;
+	}
+
+	public boolean isDockerReady() {
+		return dockerReady;
+	}
+
+	public void setDockerReady(boolean dockerReady) {
+		this.dockerReady = dockerReady;
+	}
+
+	public boolean isKubeletReady() {
+		return kubeletReady;
+	}
+
+	public void setKubeletReady(boolean kubeletReady) {
+		this.kubeletReady = kubeletReady;
 	}
 	
 }
