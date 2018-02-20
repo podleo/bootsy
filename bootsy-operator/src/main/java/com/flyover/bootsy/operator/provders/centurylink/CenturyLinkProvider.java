@@ -30,7 +30,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flyover.bootsy.operator.Operator;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
 import com.flyover.bootsy.operator.k8s.KubeMeta;
 import com.flyover.bootsy.operator.k8s.KubeNode;
@@ -47,7 +46,8 @@ import com.flyover.bootsy.operator.provders.AbstractProvider;
 @SuppressWarnings("unchecked")
 public class CenturyLinkProvider extends AbstractProvider {
 	
-	private static final Logger LOG = LoggerFactory.getLogger(Operator.class);
+	private static final Logger LOG = LoggerFactory.getLogger(CenturyLinkProvider.class);
+	
 	private static final SecureRandom RANDOM = new SecureRandom();
 	private static final String ALPHA_CAPS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final String ALPHA = "abcdefghijklmnopqrstuvwxyz";

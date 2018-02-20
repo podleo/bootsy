@@ -166,9 +166,9 @@ public class Operator {
 			
 			try {
 				
-				new Connection(kubeAdapter, kn).raw("docker pull portr.ctnr.ctl.io/markramach/bootsy-cmd:latest");
+				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/markramach/bootsy-cmd:latest");
 				new Connection(kubeAdapter, kn).raw(String.format(
-						"docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
+						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
 						"portr.ctnr.ctl.io/markramach/bootsy-cmd:latest --init --type=node --api-server-endpoint=http://%s:8080", 
 							masterIpAddress));
 			
