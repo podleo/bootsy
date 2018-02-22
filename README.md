@@ -33,6 +33,17 @@ spec:
   type: azure
 ``` 
 
+```yaml
+apiVersion: v1
+data:
+  key: ...
+kind: Secret
+metadata:
+  name: azure
+  namespace: bootsy
+type: Opaque
+```
+
 ### KubeNodeController
 The KubeNodeController utilizes the provider and label selectors to determine if the appropriate number of nodes have been provisioned. This is similar to a Deployment of ReplicationController, requiring that a certain number of nodes be provisioned at all times.
 
