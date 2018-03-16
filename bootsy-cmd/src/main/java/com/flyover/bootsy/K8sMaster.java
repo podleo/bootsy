@@ -59,6 +59,10 @@ public class K8sMaster extends K8sServer {
 		pullImage("quay.io/coreos/etcd:v2.3.8");
 		// pull kubernetes image
 		pullImage("portr.ctnr.ctl.io/markramach/kube-base:1.7.11");
+		// pull bootsy image
+		pullImage("portr.ctnr.ctl.io/markramach/bootsy-cmd:0.0.1-SNAPSHOT");
+		// pull bootsy operator image
+		pullImage("portr.ctnr.ctl.io/markramach/bootsy-operator:0.0.1-SNAPSHOT");
 		// start etcd container
 		startEtcd();
 		// start kube-apiserver
@@ -127,7 +131,7 @@ public class K8sMaster extends K8sServer {
 		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
 		velocityEngine.init();
 		
-		Template template = velocityEngine.getTemplate("kube-node-crd.yaml");
+		Template template = velocityEngine.getTemplate("bootsy-specs.yaml");
 		
 		VelocityContext context = new VelocityContext();
 		context.put("ip_address", getIpAddress().getHostAddress());

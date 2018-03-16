@@ -56,3 +56,28 @@ items:
       authSecret:
         namespace: bootsy
         name: "$auth_secret_name"
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: bootsy
+  spec:
+    finalizers:
+    - kubernetes
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    name: bootsy-operator
+    namespace: bootsy
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: bootsy
+      spec:
+        containers:
+        - name: bootsy-operator
+          image: portr.ctnr.ctl.io/markramach/bootsy-operator:0.0.1-SNAPSHOT
+          imagePullPolicy: Always
+          args:
+          - "--bootsy.k8s.endpoint=http://$ip_address:8080"

@@ -9,6 +9,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<registry>portr.ctnr.ctl.io</registry>
+		<registryUrl>https://portr.ctnr.ctl.io/v2/</registryUrl>
 		<organization>markramach</organization>
 	</properties>
 	<modules>

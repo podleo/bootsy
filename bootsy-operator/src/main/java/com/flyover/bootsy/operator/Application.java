@@ -6,6 +6,7 @@ package com.flyover.bootsy.operator;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -22,6 +23,9 @@ import com.flyover.bootsy.operator.provders.centurylink.CenturyLinkProvider;
 @EnableScheduling
 public class Application {
 	
+	@Value("${bootsy.k8s.endpoint:http://localhost:8080}")
+	private String k8sEndpoint;
+	
 	@Bean
 	public ScheduledExecutorService executor() {
 		return new ScheduledThreadPoolExecutor(4);
@@ -29,8 +33,7 @@ public class Application {
 	
 	@Bean
 	public KubeAdapter kubeAdapter() {
-//		return new KubeAdapter("http://10.82.98.33:8080");
-		return new KubeAdapter("http://10.0.1.11:8080");
+		return new KubeAdapter(k8sEndpoint);
 	}
 	
 	@Bean

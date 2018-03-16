@@ -123,7 +123,7 @@
 				<version>0.4.12</version>
 				<configuration>
 					<serverId>portr</serverId>
-					<registryUrl>https://portr.ctnr.ctl.io/v2/</registryUrl>
+					<registryUrl>${registryUrl}</registryUrl>
 					<imageName>${registry}/${organization}/${project.artifactId}</imageName>
 					<dockerDirectory>${basedir}/src/main/docker</dockerDirectory>
 					<resources>
@@ -134,9 +134,10 @@
 						</resource>
 					</resources>
 					<forceTags>true</forceTags>
-					<pushTags>true</pushTags>
+					<pushImageTag>true</pushImageTag>
 					<imageTags>
 						<imageTag>${project.version}</imageTag>
+						<imageTag>latest</imageTag>
 					</imageTags>
 				</configuration>
 			</plugin>
