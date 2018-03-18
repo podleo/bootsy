@@ -27,6 +27,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,7 +53,7 @@ public class CenturyLinkProvider extends AbstractProvider {
 	private static final String ALPHA_CAPS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final String ALPHA = "abcdefghijklmnopqrstuvwxyz";
     private static final String NUMERIC = "0123456789";
-    private static final String SPECIAL_CHARS = "!@#$%^&*_=+-/";
+    private static final String SPECIAL_CHARS = "!@#$%*_=+-/";
     private static final String DICT = ALPHA_CAPS + ALPHA + NUMERIC + SPECIAL_CHARS;
 	
 	private static final ObjectMapper MAPPER = new ObjectMapper(); 
@@ -130,7 +131,7 @@ public class CenturyLinkProvider extends AbstractProvider {
 	}
 	
 	@Override
-	public void createInstance(KubeNodeProvider knp, KubeNode kn) {
+	public KubeNode createInstance(KubeNodeProvider knp, KubeNode kn) {
 		
 		CenturyLinkKubeNodeProviderSpec config = MAPPER
 				.convertValue(knp.getSpec(), CenturyLinkKubeNodeProviderSpec.class);
@@ -139,13 +140,13 @@ public class CenturyLinkProvider extends AbstractProvider {
 		SecretRef secretRef = config.getCredentialsSecret();
 		
 		if(secretRef == null) {
-			LOG.error("secretRef is required on a centurylink provider"); return;
+			LOG.error("secretRef is required on a centurylink provider"); return kn;
 		}
 		
 		Secret credentials = kubeAdapter.getSecret(secretRef.getNamespace(), secretRef.getName());
 		
 		if(credentials == null) {
-			LOG.error("credentials secret in namespace {} with name {} not found", secretRef.getNamespace(), secretRef.getName()); return;
+			LOG.error("credentials secret in namespace {} with name {} not found", secretRef.getNamespace(), secretRef.getName()); return kn;
 		}
 		
 		Authentication auth = login(
@@ -209,11 +210,15 @@ public class CenturyLinkProvider extends AbstractProvider {
 			kn.getSpec().setConnector(new KubeNodeConnector());
 			kn.getSpec().getConnector().setAuthSecret(ref);
 			
-			kubeAdapter.updateKubeNode(kn);
+			return kubeAdapter.updateKubeNode(kn);
 						
+		} catch (HttpClientErrorException e) {
+			LOG.error("server provision request failed {}", e.getMessage());
 		} catch (Exception e) {
 			LOG.error("server provision request failed {}", e.getMessage());
 		}
+		
+		return kn;
 		
 	}
 	

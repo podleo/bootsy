@@ -16,7 +16,7 @@ public interface Provider {
 
 	boolean instanceCreated(KubeNodeProvider knp, KubeNode kn);
 
-	void createInstance(KubeNodeProvider knp, KubeNode kn);
+	KubeNode createInstance(KubeNodeProvider knp, KubeNode kn);
 
 	boolean instanceReady(KubeNodeProvider knp, KubeNode kn);
 

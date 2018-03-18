@@ -89,3 +89,43 @@ spec:
   provider: azure
   type: node
 ```
+
+## CenturyLink Cloud Provider
+The CenturyLink Cloud (CLC) provider requires a few pieces of account specific detail like account alias, datacenter id, group id and network id. This provider also requires a credentials secret. This credentials secret should be composed of a username and password with enough access to provision resources at the requested location.
+
+### Credentials Secret
+The credentials secret is referenced by the operator via the provider specification. The secret specified in the provider should be accessible to the operator.
+
+```yaml
+apiVersion: v1
+data:
+  password: ..base64 encoded username
+  username: ..base64 encoded password
+kind: Secret
+metadata:
+  name: centurylink
+  namespace: bootsy
+type: Opaque
+```
+
+### CenturyLink Provider
+The CenturyLink provider will be used by the operator to initiate all automation related to infrastructure for the nodes. This includes create operations, status checks and in the future delete operations. As you can see we have referenced the previously created secret below. Additionally, we have several fields related to the virtual machine instance like `cpu` and `memoryGB`.
+
+```yaml
+apiVersion: bootsy.flyover.com/v1
+kind: KubeNodeProvider
+metadata:
+  name: centurylink
+spec:
+  credentialsSecret:
+    name: centurylink
+    namespace: bootsy
+  accountAlias: WOPR
+  datacenter: WA1
+  group: ...group id
+  cpu: 4
+  memoryGB: 8
+  network: ...network id
+  os: UBUNTU-16-64-TEMPLATE
+  type: centurylink
+```

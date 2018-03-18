@@ -113,6 +113,7 @@ public class K8sServer {
 		VelocityContext context = new VelocityContext();
 		context.put("node_labels", labels);
 		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
 		
 		StringWriter kubeletServiceValue = new StringWriter();
 		

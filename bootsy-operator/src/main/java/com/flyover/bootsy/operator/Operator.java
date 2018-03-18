@@ -3,6 +3,7 @@
  */
 package com.flyover.bootsy.operator;
 
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -106,15 +107,15 @@ public class Operator {
 		
 		if(!provider.instanceCreated(knp, kn)) {
 			
-			LOG.debug("an istance will be created for KubeNode {}", kn.getMetadata().getName());
+			LOG.debug("an instance will be created for KubeNode {}", kn.getMetadata().getName());
 			// create the instance using the requested provider
-			provider.createInstance(knp, kn);
+			kn = provider.createInstance(knp, kn);
 			
 		}
 		
 		if(!provider.instanceReady(knp, kn)) {
 			
-			LOG.debug("an istance is not yet ready for KubeNode {}", kn.getMetadata().getName());
+			LOG.debug("an instance is not yet ready for KubeNode {}", kn.getMetadata().getName());
 			
 			return;
 			
@@ -131,13 +132,15 @@ public class Operator {
 				new Connection(kubeAdapter, kn).raw("sudo apt-get install apt-transport-https ca-certificates curl software-properties-common -y");
 				new Connection(kubeAdapter, kn).raw("curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -");
 				new Connection(kubeAdapter, kn).raw("sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"");
-				new Connection(kubeAdapter, kn).raw("sudo apt-get update");
+				new Connection(kubeAdapter, kn).raw("sudo apt-get update");	
 				new Connection(kubeAdapter, kn).raw("sudo apt-get install docker-ce=17.12.0~ce-0~ubuntu -y");
+//				deployDockerConfig(kn);
+				new Connection(kubeAdapter, kn).raw("sudo systemctl restart docker");
 
 				// mark docker as ready
 				kn.getSpec().setDockerReady(true);
 				// update the spec
-				kubeAdapter.updateKubeNode(kn);
+				kn = kubeAdapter.updateKubeNode(kn);
 				
 			} catch (Exception e) {
 				LOG.error("failed during docker installation {}", e.getMessage()); 
@@ -175,7 +178,7 @@ public class Operator {
 				// mark kubelet as ready
 				kn.getSpec().setKubeletReady(true);
 				// update the spec
-				kubeAdapter.updateKubeNode(kn);
+				kn = kubeAdapter.updateKubeNode(kn);
 				
 			} catch (Exception e) {
 				LOG.error("failed during kubelet installation {}", e.getMessage());
@@ -198,6 +201,25 @@ public class Operator {
 		kn.getSpec().setProvider(knc.getSpec().getProvider());
 		
 		kubeAdapter.createKubeNode(kn);
+		
+	}
+	
+	private void deployDockerConfig(KubeNode kn) {
+		
+		LOG.debug(String.format("deploying docker config"));
+		
+		try {
+			
+			new Connection(kubeAdapter, kn).put(
+				Paths.get(getClass().getClassLoader().getResource("docker/daemon.json").toURI()).toFile(),
+				"/etc/docker/daemon.json");
+			
+			LOG.debug(String.format("daemon.json created at /etc/docker/daemon.json"));
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException("failed to write daemon.json file.", e);
+		}
 		
 	}
 	

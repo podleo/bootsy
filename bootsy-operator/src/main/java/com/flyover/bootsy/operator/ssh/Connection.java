@@ -3,6 +3,7 @@
  */
 package com.flyover.bootsy.operator.ssh;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Base64;
@@ -11,9 +12,11 @@ import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.connection.ConnectionException;
 import net.schmizz.sshj.connection.channel.direct.Session;
 import net.schmizz.sshj.connection.channel.direct.Session.Command;
+import net.schmizz.sshj.sftp.SFTPClient;
 import net.schmizz.sshj.transport.TransportException;
 import net.schmizz.sshj.userauth.UserAuthException;
 import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile;
+import net.schmizz.sshj.xfer.FileSystemFile;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -52,6 +55,21 @@ public class Connection {
 			
 		} catch (Exception e) {
 			throw new RuntimeException("failed to execute ssh command", e);
+		}
+		
+	}
+	
+	public void put(File f, String dest) {
+		
+		try {
+			
+			SSHClient ssh = connect();
+			SFTPClient sftp = ssh.newSFTPClient();
+			sftp.put(new FileSystemFile(f), dest);
+			ssh.close();
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to execute sftp put", e);
 		}
 		
 	}

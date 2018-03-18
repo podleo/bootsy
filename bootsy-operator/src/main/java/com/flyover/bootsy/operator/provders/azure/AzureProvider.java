@@ -60,7 +60,7 @@ public class AzureProvider extends AbstractProvider {
 	}
 	
 	@Override
-	public void createInstance(KubeNodeProvider knp, KubeNode kn) {
+	public KubeNode createInstance(KubeNodeProvider knp, KubeNode kn) {
 		
 		AzureKubeNodeProviderSpec config = MAPPER
 				.convertValue(knp.getSpec(), AzureKubeNodeProviderSpec.class);
@@ -69,13 +69,13 @@ public class AzureProvider extends AbstractProvider {
 		SecretRef secretRef = config.getCredentialsSecret();
 		
 		if(secretRef == null) {
-			LOG.error("secretRef is required on a azure provider"); return;
+			LOG.error("secretRef is required on a azure provider"); return kn;
 		}
 		
 		Secret credentials = kubeAdapter.getSecret(secretRef.getNamespace(), secretRef.getName());
 		
 		if(credentials == null) {
-			LOG.error("credentials secret in namespace {} with name {} not found", secretRef.getNamespace(), secretRef.getName()); return;
+			LOG.error("credentials secret in namespace {} with name {} not found", secretRef.getNamespace(), secretRef.getName()); return kn;
 		}
 		
 		LOG.debug(String.format("creating new public and private keys"));
@@ -167,7 +167,7 @@ public class AzureProvider extends AbstractProvider {
 		kn.getSpec().setConnector(new KubeNodeConnector());
 		kn.getSpec().getConnector().setAuthSecret(ref);
 		
-		kubeAdapter.updateKubeNode(kn);
+		return kubeAdapter.updateKubeNode(kn);
 		
 	}
 
