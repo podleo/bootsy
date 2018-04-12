@@ -4,6 +4,8 @@
 package com.flyover.bootsy.operator;
 
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -73,6 +75,21 @@ public class Operator {
 			// delete excess KubeNodes (logical delete so additional controller loop can process delete)
 			
 		}
+		
+		// ensure that all kn specs are updated with the latest checksum and packages.
+		String checksum = checksum(knc.getSpec().getPackages());
+		
+		nodes.stream()
+			.filter(n -> !checksum.equals(n.getSpec().getPackages().getChecksum()))
+			.map(n -> {
+				
+				n.getSpec().getPackages().setPackages(knc.getSpec().getPackages());
+				n.getSpec().getPackages().setChecksum(checksum);
+				
+				return n;
+				
+			})
+			.forEach(kubeAdapter::updateKubeNode);
 		
 	}
 	
@@ -150,6 +167,30 @@ public class Operator {
 			
 		}
 		
+		// if packages are not installed
+		if(kn.getSpec().isDockerReady() && 
+			!kn.getSpec().getPackages().getChecksum().equalsIgnoreCase(kn.getSpec().getChecksum())) {
+			
+			try {
+				
+				LOG.debug("installing packages for KubeNode {}", kn.getMetadata().getName());
+				
+				kn.getSpec().getPackages().getPackages()
+					.forEach(p -> new Connection(kubeAdapter, kn).raw(String.format("sudo apt-get install %s -y", p)));
+				
+				kn.getSpec().setChecksum(kn.getSpec().getPackages().getChecksum());
+				
+				// update latest applied checksum
+				kubeAdapter.updateKubeNode(kn);
+				
+			} catch (Exception e) {
+				LOG.error("failed during package installation {}", e.getMessage()); 
+				// stop node actions
+				return;
+			}
+			
+		}
+		
 		// check to see if the kubelet has been initialized on the node.
 		if(!kn.getSpec().isKubeletReady()) {
 			
@@ -199,6 +240,8 @@ public class Operator {
 		kn.getMetadata().setLabels(knc.getSpec().getSelectors());
 		kn.getSpec().setType("node");
 		kn.getSpec().setProvider(knc.getSpec().getProvider());
+		kn.getSpec().getPackages().setChecksum(checksum(knc.getSpec().getPackages()));
+		kn.getSpec().getPackages().setPackages(knc.getSpec().getPackages());
 		
 		kubeAdapter.createKubeNode(kn);
 		
@@ -218,6 +261,22 @@ public class Operator {
 			
 		} catch (Exception e) {
 			throw new RuntimeException("failed to write daemon.json file.", e);
+		}
+		
+	}
+	
+	private String checksum(List<String> values) {
+		
+		try {
+			
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			values.forEach(n -> md.update(n.getBytes()));
+			String checksum = Base64.getUrlEncoder().encodeToString(md.digest());
+			
+			return checksum;
+			
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to generate checksum.", e);
 		}
 		
 	}
