@@ -3,6 +3,8 @@
  */
 package com.flyover.bootsy.operator;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
@@ -134,7 +136,7 @@ public class Operator {
 				new Connection(kubeAdapter, kn).raw("sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"");
 				new Connection(kubeAdapter, kn).raw("sudo apt-get update");	
 				new Connection(kubeAdapter, kn).raw("sudo apt-get install docker-ce=17.12.0~ce-0~ubuntu -y");
-//				deployDockerConfig(kn);
+				deployDockerConfig(kn);
 				new Connection(kubeAdapter, kn).raw("sudo systemctl restart docker");
 
 				// mark docker as ready
@@ -210,9 +212,7 @@ public class Operator {
 		
 		try {
 			
-			new Connection(kubeAdapter, kn).put(
-				Paths.get(getClass().getClassLoader().getResource("docker/daemon.json").toURI()).toFile(),
-				"/etc/docker/daemon.json");
+			new Connection(kubeAdapter, kn).put(new File("/docker-daemon.json"), "/etc/docker/daemon.json");
 			
 			LOG.debug(String.format("daemon.json created at /etc/docker/daemon.json"));
 			

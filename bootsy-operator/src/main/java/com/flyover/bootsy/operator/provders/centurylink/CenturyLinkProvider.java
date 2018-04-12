@@ -213,6 +213,7 @@ public class CenturyLinkProvider extends AbstractProvider {
 			return kubeAdapter.updateKubeNode(kn);
 						
 		} catch (HttpClientErrorException e) {
+			System.out.println(e.getResponseBodyAsString());
 			LOG.error("server provision request failed {}", e.getMessage());
 		} catch (Exception e) {
 			LOG.error("server provision request failed {}", e.getMessage());
