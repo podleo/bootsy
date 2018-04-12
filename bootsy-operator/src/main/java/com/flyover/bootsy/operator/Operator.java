@@ -4,8 +4,6 @@
 package com.flyover.bootsy.operator;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -217,7 +215,6 @@ public class Operator {
 			LOG.debug(String.format("daemon.json created at /etc/docker/daemon.json"));
 			
 		} catch (Exception e) {
-			e.printStackTrace();
 			throw new RuntimeException("failed to write daemon.json file.", e);
 		}
 		
