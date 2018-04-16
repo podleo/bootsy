@@ -12,7 +12,7 @@ import java.util.List;
  */
 public class KubeNodePackageSpec extends Model {
 	
-	private String checksum;
+	private String checksum = "";
 	private List<String> packages = new LinkedList<>();
 	
 	public String getChecksum() {

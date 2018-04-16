@@ -19,6 +19,8 @@ public class KubeNodeSpec extends Model {
 	private boolean dockerReady = false;
 	private boolean kubeletReady = false;
 	private Map<String, Object> instanceInfo = new LinkedHashMap<>();
+	private String checksum = "";
+	private KubeNodePackageSpec packages = new KubeNodePackageSpec();
 
 	public String getType() {
 		return type;
@@ -74,6 +76,22 @@ public class KubeNodeSpec extends Model {
 
 	public void setKubeletReady(boolean kubeletReady) {
 		this.kubeletReady = kubeletReady;
+	}
+
+	public KubeNodePackageSpec getPackages() {
+		return packages;
+	}
+
+	public void setPackages(KubeNodePackageSpec packages) {
+		this.packages = packages;
+	}
+
+	public String getChecksum() {
+		return checksum;
+	}
+
+	public void setChecksum(String checksum) {
+		this.checksum = checksum;
 	}
 	
 }
