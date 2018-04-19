@@ -18,6 +18,8 @@ public interface Provider {
 
 	KubeNode createInstance(KubeNodeProvider knp, KubeNode kn);
 
+	KubeNode restartInstance(KubeNodeProvider knp, KubeNode kn);
+	
 	boolean instanceReady(KubeNodeProvider knp, KubeNode kn);
 
 }

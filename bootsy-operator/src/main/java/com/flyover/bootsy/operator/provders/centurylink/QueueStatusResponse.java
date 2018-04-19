@@ -13,28 +13,10 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
  * @author mramach
  *
  */
-public class InstanceInfo {
-
+public class QueueStatusResponse {
+	
 	private String status;
-	private String serverId;
-	private String serverName;
 	private Map<String, Object> any = new LinkedHashMap<String, Object>();
-
-	public String getStatus() {
-		return status;
-	}
-
-	public void setStatus(String status) {
-		this.status = status;
-	}
-
-	public String getServerId() {
-		return serverId;
-	}
-
-	public void setServerId(String serverId) {
-		this.serverId = serverId;
-	}
 
 	@JsonAnyGetter
 	public Map<String,Object> any() {
@@ -46,12 +28,12 @@ public class InstanceInfo {
 	    any.put(name, value);
 	}
 
-	public String getServerName() {
-		return serverName;
+	public String getStatus() {
+		return status;
 	}
 
-	public void setServerName(String serverName) {
-		this.serverName = serverName;
+	public void setStatus(String status) {
+		this.status = status;
 	}
-	
+
 }

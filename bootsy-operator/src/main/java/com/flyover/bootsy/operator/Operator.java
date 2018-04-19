@@ -14,6 +14,7 @@ import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
@@ -35,6 +36,8 @@ public class Operator {
 	private KubeAdapter kubeAdapter;
 	@Autowired
 	private List<Provider> providers;
+	@Value("${docker.config.template:/docker-daemon.json}")
+	private String dockerConfigTemplate;
 
 	@Scheduled(fixedDelay = 5000L, initialDelay = 0L)
 	public void controllerLoop() {
@@ -138,14 +141,26 @@ public class Operator {
 			
 		}
 		
+		/*
+		 * use single state field instead of boolean fields.
+		 * 
+		 * docker_install == install docker
+		 * instance_restart == restart instance
+		 * kubelet_install == install kube services
+		 * configured == install additional packages // this is a repeating process 
+		 * 
+		 */
+		
 		// check to see if the node has been prepped for initialization
-		if(!kn.getSpec().isDockerReady()) {
+		if("docker_install".equals(kn.getSpec().getState())) {
 		
 			LOG.debug("prepping docker for KubeNode {}", kn.getMetadata().getName());
 			
 			try {
 				
-				new Connection(kubeAdapter, kn).raw("sudo apt-get update");	
+				new Connection(kubeAdapter, kn).raw("sudo apt-get update");
+//				new Connection(kubeAdapter, kn).raw("sudo apt-get -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" upgrade -y");
+//				new Connection(kubeAdapter, kn).raw("sudo apt-get -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" dist-upgrade -y");
 				new Connection(kubeAdapter, kn).raw("sudo apt-get install apt-transport-https ca-certificates curl software-properties-common -y");
 				new Connection(kubeAdapter, kn).raw("curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -");
 				new Connection(kubeAdapter, kn).raw("sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"");
@@ -155,7 +170,7 @@ public class Operator {
 				new Connection(kubeAdapter, kn).raw("sudo systemctl restart docker");
 
 				// mark docker as ready
-				kn.getSpec().setDockerReady(true);
+				kn.getSpec().setState("instance_restart");
 				// update the spec
 				kn = kubeAdapter.updateKubeNode(kn);
 				
@@ -167,34 +182,30 @@ public class Operator {
 			
 		}
 		
-		// if packages are not installed
-		if(kn.getSpec().isDockerReady() && 
-			!kn.getSpec().getPackages().getChecksum().equalsIgnoreCase(kn.getSpec().getChecksum())) {
+		// restart the node so any required changes requiring restart are handled.
+		if("instance_restart".equals(kn.getSpec().getState())) {
 			
-			KubeNode kni = kn;
-			
+			LOG.debug("restarting KubeNode {} for changes to take effect", kn.getMetadata().getName());
+
 			try {
 				
-				LOG.debug("installing packages for KubeNode {}", kn.getMetadata().getName());
+				provider.restartInstance(knp, kn);
 				
-				kn.getSpec().getPackages().getPackages()
-					.forEach(p -> new Connection(kubeAdapter, kni).raw(String.format("sudo apt-get install %s -y", p)));
-				
-				kn.getSpec().setChecksum(kn.getSpec().getPackages().getChecksum());
-				
-				// update latest applied checksum
-				kubeAdapter.updateKubeNode(kn);
+				// mark docker as ready
+				kn.getSpec().setState("kubelet_install");
+				// update the spec
+				kn = kubeAdapter.updateKubeNode(kn);
 				
 			} catch (Exception e) {
-				LOG.error("failed during package installation {}", e.getMessage()); 
+				LOG.error("failed instance restart {}", e.getMessage()); 
 				// stop node actions
 				return;
-			}
+			}			
 			
 		}
 		
 		// check to see if the kubelet has been initialized on the node.
-		if(!kn.getSpec().isKubeletReady()) {
+		if("kubelet_install".equals(kn.getSpec().getState())) {
 			
 			LOG.debug("prepping kubelet for KubeNode {}", kn.getMetadata().getName());
 			
@@ -219,7 +230,7 @@ public class Operator {
 							masterIpAddress));
 			
 				// mark kubelet as ready
-				kn.getSpec().setKubeletReady(true);
+				kn.getSpec().setState("configured");
 				// update the spec
 				kn = kubeAdapter.updateKubeNode(kn);
 				
@@ -227,6 +238,33 @@ public class Operator {
 				LOG.error("failed during kubelet installation {}", e.getMessage());
 				// stop node actions
 				return ;
+			}
+			
+		}
+		
+		// if packages are not installed
+		if("configured".equals(kn.getSpec().getState()) && 
+			!kn.getSpec().getPackages().getChecksum().equalsIgnoreCase(kn.getSpec().getChecksum())) {
+			
+			KubeNode kni = kn;
+			
+			try {
+				
+				LOG.debug("installing packages for KubeNode {}", kn.getMetadata().getName());
+				
+				kn.getSpec().getPackages().getPackages()
+					.forEach(p -> new Connection(kubeAdapter, kni).raw(String.format(
+						"sudo apt-get -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" install %s -y", p)));
+				
+				kn.getSpec().setChecksum(kn.getSpec().getPackages().getChecksum());
+				
+				// update latest applied checksum
+				kubeAdapter.updateKubeNode(kn);
+				
+			} catch (Exception e) {
+				LOG.error("failed during package installation {}", e.getMessage()); 
+				// stop node actions
+				return;
 			}
 			
 		}
@@ -255,7 +293,7 @@ public class Operator {
 		
 		try {
 			
-			new Connection(kubeAdapter, kn).put(new File("/docker-daemon.json"), "/etc/docker/daemon.json");
+			new Connection(kubeAdapter, kn).put(new File(dockerConfigTemplate), "/etc/docker/daemon.json");
 			
 			LOG.debug(String.format("daemon.json created at /etc/docker/daemon.json"));
 			

@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -228,6 +229,44 @@ public class AzureProvider extends AbstractProvider {
 		
 	}
 	
+	@Override
+	public KubeNode restartInstance(KubeNodeProvider knp, KubeNode kn) {
+	
+		AzureKubeNodeProviderSpec config = MAPPER
+				.convertValue(knp.getSpec(), AzureKubeNodeProviderSpec.class);
+		
+		// ensure that the api credentials secret is present
+		SecretRef secretRef = config.getCredentialsSecret();
+		
+		if(secretRef == null) {
+			LOG.error("secretRef is required on a azure provider"); return kn;
+		}
+		
+		Secret credentials = kubeAdapter.getSecret(secretRef.getNamespace(), secretRef.getName());
+		
+		if(credentials == null) {
+			LOG.error("credentials secret in namespace {} with name {} not found", secretRef.getNamespace(), secretRef.getName()); return kn;
+		}
+		
+		ApplicationTokenCredentials azureCredentials = new ApplicationTokenCredentials(
+			config.getClient(), 
+			config.getTenant(), 
+			credentials.getData().get("key"), 
+			null);
+		
+		Azure azure = Azure.configure()
+	        .withLogLevel(LogLevel.BASIC)
+	        .authenticate(azureCredentials)
+	        .withSubscription(config.getSubscription());
+		
+		VirtualMachine vm = azure.virtualMachines()
+			.getByResourceGroup(config.getResourceGroup(), kn.getMetadata().getName());
+		
+		vm.restartAsync().await(10, TimeUnit.MINUTES);
+		
+		return kn;
+	}
+
 	private InstanceInfo getInstanceInfo(KubeNode kn) {
 		return MAPPER.convertValue(kn.getSpec().getInstanceInfo(), InstanceInfo.class);
 	}

@@ -15,45 +15,27 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
  * @author mramach
  *
  */
-public class ServerDetailResponse {
+public class ServerResetResponse {
 	
-	private String id;
-	private String name;
-	private String status;
-	private ServerDetails details = new ServerDetails();
+	private String server;
+	private boolean isQueued;
 	private List<Link> links = new LinkedList<>();
 	private Map<String, Object> any = new LinkedHashMap<String, Object>();
 
-	public String getId() {
-		return id;
+	public String getServer() {
+		return server;
 	}
 
-	public void setId(String id) {
-		this.id = id;
+	public void setServer(String server) {
+		this.server = server;
 	}
 
-	public String getName() {
-		return name;
+	public boolean isQueued() {
+		return isQueued;
 	}
 
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public String getStatus() {
-		return status;
-	}
-
-	public void setStatus(String status) {
-		this.status = status;
-	}
-
-	public ServerDetails getDetails() {
-		return details;
-	}
-
-	public void setDetails(ServerDetails details) {
-		this.details = details;
+	public void setQueued(boolean isQueued) {
+		this.isQueued = isQueued;
 	}
 
 	public List<Link> getLinks() {

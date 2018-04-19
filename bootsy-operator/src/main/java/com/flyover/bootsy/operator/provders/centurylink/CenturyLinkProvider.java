@@ -112,6 +112,7 @@ public class CenturyLinkProvider extends AbstractProvider {
 			// set the instance state for future reference
 			InstanceInfo info = getInstanceInfo(kn);
 			info.setStatus("ready");
+			info.setServerName(details.getName());
 			
 			setInstanceInfo(kn, info);
 			
@@ -223,6 +224,56 @@ public class CenturyLinkProvider extends AbstractProvider {
 		
 	}
 	
+	@Override
+	public KubeNode restartInstance(KubeNodeProvider knp, KubeNode kn) {
+		
+		CenturyLinkKubeNodeProviderSpec config = MAPPER
+				.convertValue(knp.getSpec(), CenturyLinkKubeNodeProviderSpec.class);
+		
+		// ensure that the api credentials secret is present
+		SecretRef secretRef = config.getCredentialsSecret();
+		
+		if(secretRef == null) {
+			LOG.error("secretRef is required on a centurylink provider"); return kn;
+		}
+		
+		Secret credentials = kubeAdapter.getSecret(secretRef.getNamespace(), secretRef.getName());
+		
+		if(credentials == null) {
+			LOG.error("credentials secret in namespace {} with name {} not found", secretRef.getNamespace(), secretRef.getName()); return kn;
+		}
+		
+		Authentication auth = login(
+			new String(Base64.getDecoder().decode(credentials.getData().get("username"))), 
+			new String(Base64.getDecoder().decode(credentials.getData().get("password"))));
+		
+		// use auth to make call to reset instance
+		ServerResetResponse reset = resetServer(config, auth, getInstanceInfo(kn).getServerName());
+		
+		Link status = reset.getLinks().stream()
+				.filter(l -> "status".equalsIgnoreCase(l.getRel()))
+				.findFirst()
+					.get();
+		
+		// wait for queued operation to complete
+		while(true) {
+			
+			QueueStatusResponse op = getQueueStatus(config, auth, status.getId());
+			
+			if("succeeded".equals(op.getStatus())) {
+				return kn;
+			}
+			
+			if("failed".equals(op.getStatus())) {
+				throw new RuntimeException("failed to restart instance");
+			}
+			
+			try { Thread.sleep(5000L); } catch(Exception e) { /* do nothing */ }
+			
+		}
+		
+	}
+
 	private InstanceInfo getInstanceInfo(KubeNode kn) {
 		return MAPPER.convertValue(kn.getSpec().getInstanceInfo(), InstanceInfo.class);
 	}
@@ -276,6 +327,34 @@ public class CenturyLinkProvider extends AbstractProvider {
 		ResponseEntity<ServerDetailResponse> response = new RestTemplate().exchange(
                 String.format("%s/v2/servers/%s/%s?uuid=true", endpoint, config.getAccountAlias(), serverId), 
                     HttpMethod.GET, new HttpEntity<>(headers), ServerDetailResponse.class);
+		
+		return response.getBody();
+		
+	}
+	
+	public ServerResetResponse resetServer(CenturyLinkKubeNodeProviderSpec config, Authentication auth, String serverName) {
+		
+		HttpHeaders headers = new HttpHeaders();
+		headers.set("Authorization", String.format("Bearer %s", auth.getBearerToken()));
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		
+		ResponseEntity<ServerResetResponse[]> response = new RestTemplate().exchange(
+                String.format("%s/v2/operations/%s/servers/reset", endpoint, config.getAccountAlias(), serverName), 
+                    HttpMethod.POST, new HttpEntity<>(Arrays.asList(serverName), headers), ServerResetResponse[].class);
+		
+		return response.getBody()[0];
+		
+	}
+	
+	public QueueStatusResponse getQueueStatus(CenturyLinkKubeNodeProviderSpec config, Authentication auth, String id) {
+		
+		HttpHeaders headers = new HttpHeaders();
+		headers.set("Authorization", String.format("Bearer %s", auth.getBearerToken()));
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		
+		ResponseEntity<QueueStatusResponse> response = new RestTemplate().exchange(
+                String.format("%s/v2/operations/%s/status/%s", endpoint, config.getAccountAlias(), id), 
+                    HttpMethod.GET, new HttpEntity<>(headers), QueueStatusResponse.class);
 		
 		return response.getBody();
 		

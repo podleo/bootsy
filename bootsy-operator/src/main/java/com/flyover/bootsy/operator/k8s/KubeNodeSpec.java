@@ -16,8 +16,7 @@ public class KubeNodeSpec extends Model {
 	private String provider;
 	private KubeNodeConnector connector;
 	private String ipAddress;
-	private boolean dockerReady = false;
-	private boolean kubeletReady = false;
+	private String state = "docker_install";
 	private Map<String, Object> instanceInfo = new LinkedHashMap<>();
 	private String checksum = "";
 	private KubeNodePackageSpec packages = new KubeNodePackageSpec();
@@ -62,20 +61,12 @@ public class KubeNodeSpec extends Model {
 		this.ipAddress = ipAddress;
 	}
 
-	public boolean isDockerReady() {
-		return dockerReady;
+	public String getState() {
+		return state;
 	}
 
-	public void setDockerReady(boolean dockerReady) {
-		this.dockerReady = dockerReady;
-	}
-
-	public boolean isKubeletReady() {
-		return kubeletReady;
-	}
-
-	public void setKubeletReady(boolean kubeletReady) {
-		this.kubeletReady = kubeletReady;
+	public void setState(String state) {
+		this.state = state;
 	}
 
 	public KubeNodePackageSpec getPackages() {
