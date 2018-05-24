@@ -6,10 +6,14 @@ package com.flyover.bootsy.operator.k8s;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+
 /**
  * @author mramach
  *
  */
+@JsonInclude(Include.NON_NULL)
 public class KubeNodeSpec extends Model {
 
 	private String type;
@@ -20,6 +24,7 @@ public class KubeNodeSpec extends Model {
 	private Map<String, Object> instanceInfo = new LinkedHashMap<>();
 	private String checksum = "";
 	private KubeNodePackageSpec packages = new KubeNodePackageSpec();
+	private SecuritySpec security = new SecuritySpec();
 
 	public String getType() {
 		return type;
@@ -83,6 +88,14 @@ public class KubeNodeSpec extends Model {
 
 	public void setChecksum(String checksum) {
 		this.checksum = checksum;
+	}
+
+	public SecuritySpec getSecurity() {
+		return security;
+	}
+
+	public void setSecurity(SecuritySpec security) {
+		this.security = security;
 	}
 	
 }

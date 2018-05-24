@@ -3,18 +3,19 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.flyover</groupId>
 	<artifactId>bootsy</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.7.11</version>
 	<packaging>pom</packaging>
 	<name>bootsy</name>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<registry>portr.ctnr.ctl.io</registry>
 		<registryUrl>https://portr.ctnr.ctl.io/v2/</registryUrl>
-		<organization>markramach</organization>
+		<organization>bootsy</organization>
 	</properties>
 	<modules>
 		<module>bootsy-cmd</module>
     <module>bootsy-operator</module>
+    <module>bootsy-core</module>
   </modules>
 	<build>
 		<plugins>

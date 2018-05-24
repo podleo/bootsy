@@ -11,6 +11,8 @@ import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -33,6 +35,7 @@ import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.flyover.bootsy.core.Version;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.model.Bind;
@@ -99,6 +102,80 @@ public class K8sServer {
 		
 	}
 
+	protected void deployKubeletKubeconfig(String apiServerEndpoint) {
+		
+		LOG.debug(String.format("deploying kubelet kubeconfig "));
+		
+		VelocityEngine velocityEngine = new VelocityEngine();
+		velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
+		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+		velocityEngine.init();
+		
+		Template kubeletService = velocityEngine.getTemplate("kubeconfig.kubelet");
+		
+		VelocityContext context = new VelocityContext();
+		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
+		
+		StringWriter kubeletServiceValue = new StringWriter();
+		
+		kubeletService.merge(context, kubeletServiceValue);
+		
+		Path k8s = java.nio.file.Paths.get("/etc/k8s");
+		Path kubeconfig = k8s.resolve("kubeconfig.kubelet");
+		
+		try {
+			
+			Files.createDirectories(k8s);
+			
+			Files.write(kubeconfig, kubeletServiceValue.toString().getBytes(), 
+					StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			LOG.debug(String.format("kubeconfig created at /etc/k8s/kubeconfig.kubelet"));
+			
+		} catch (IOException e) {
+			throw new RuntimeException("failed to write kubelet kubeconfig file.", e);
+		}
+		
+	}
+	
+	protected void deployKubeProxyKubeconfig(String apiServerEndpoint) {
+		
+		LOG.debug(String.format("deploying kube-proxy kubeconfig "));
+		
+		VelocityEngine velocityEngine = new VelocityEngine();
+		velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
+		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+		velocityEngine.init();
+		
+		Template kubeletService = velocityEngine.getTemplate("kubeconfig.kube-proxy");
+		
+		VelocityContext context = new VelocityContext();
+		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
+		
+		StringWriter kubeletServiceValue = new StringWriter();
+		
+		kubeletService.merge(context, kubeletServiceValue);
+		
+		Path k8s = java.nio.file.Paths.get("/etc/k8s");
+		Path kubeconfig = k8s.resolve("kubeconfig.kube-proxy");
+		
+		try {
+			
+			Files.createDirectories(k8s);
+			
+			Files.write(kubeconfig, kubeletServiceValue.toString().getBytes(), 
+					StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			LOG.debug(String.format("kubeconfig created at /etc/k8s/kubeconfig.kube-proxy"));
+			
+		} catch (IOException e) {
+			throw new RuntimeException("failed to write kube-proxy kubeconfig file.", e);
+		}
+		
+	}
+	
 	protected void deployKubelet(String apiServerEndpoint, String labels) {
 		
 		LOG.debug(String.format("deploying kubelet service "));
@@ -156,6 +233,7 @@ public class K8sServer {
 		
 		VelocityContext context = new VelocityContext();
 		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
 		
 		StringWriter kubeletServiceValue = new StringWriter();
 		
@@ -360,26 +438,28 @@ public class K8sServer {
 	
 	protected void deployKubernetesBinaries() {
 		
-		LOG.debug(String.format("deploying kubernetes binaries 1.7.11 "));
+		LOG.debug(String.format("deploying kubernetes binaries %s", Version.KUBE_VERSION));
 		
 		Volume bin = new Volume("/usr/bin");
 		Volume opt = new Volume("/opt");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
+		String name = String.format("kube-binaries-%s", Version.KUBE_VERSION);
+		
+		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withVolumes(bin, opt)
 			.withBinds(
 				new Bind("/usr/bin", bin),
 				new Bind("/opt", opt))
 			.withEntrypoint("/bin/bash")
 			.withCmd("./copy.sh")
-			.withName("kube-binaries-1.7.11")
+			.withName(name)
 				.exec();
 		
-		LOG.debug(String.format("kube-binaries-1.7.11 container created id: %s", res.getId()));
+		LOG.debug(String.format("%s container created id: %s", name, res.getId()));
 		
 		docker.startContainerCmd(res.getId()).exec();
 		
-		LOG.debug(String.format("kube-binaries-1.7.11 container started id: %s", res.getId()));
+		LOG.debug(String.format("%s container started id: %s", name, res.getId()));
 		
 		try {
 			
@@ -398,7 +478,7 @@ public class K8sServer {
 			
 			docker.removeContainerCmd(res.getId()).exec();
 			
-			LOG.debug(String.format("kube-binaries-1.7.11 container removed id: %s", res.getId()));
+			LOG.debug(String.format("%s container removed id: %s", name, res.getId()));
 			
 		}
 		
@@ -421,4 +501,96 @@ public class K8sServer {
 		
 	}
 
+	protected static class MasterContext {
+		
+		private String masterIP;
+		private PrivateKey caKey;
+		private X509Certificate caCert;
+		private PrivateKey serverKey;
+		private X509Certificate[] serverCert;
+		private PrivateKey kubeletKey;
+		private X509Certificate[] kubeletCert;
+		private PrivateKey kubeProxyKey;
+		private X509Certificate[] kubeProxyCert;
+		private PrivateKey etcdCaKey;
+		private X509Certificate etcdCaCert;
+		private PrivateKey etcdServerKey;
+		private X509Certificate[] etcdServerCert;		
+		
+		public MasterContext(String masterIP, 
+				PrivateKey caKey, X509Certificate caCert, 
+				PrivateKey serverKey, X509Certificate[] serverCert, 
+				PrivateKey kubeletKey, X509Certificate[] kubeletCert, 
+				PrivateKey kubeProxyKey, X509Certificate[] kubeProxyCert, 
+				PrivateKey etcdCaKey, X509Certificate etcdCaCert, 
+				PrivateKey etcdServerKey, X509Certificate[] etcdServerCert) {
+			this.masterIP = masterIP;
+			this.caKey = caKey;
+			this.caCert = caCert;
+			this.serverKey = serverKey;
+			this.serverCert = serverCert;
+			this.kubeletKey = kubeletKey;
+			this.kubeletCert = kubeletCert;
+			this.kubeProxyKey = kubeProxyKey;
+			this.kubeProxyCert = kubeProxyCert;
+			this.etcdCaKey = etcdCaKey;
+			this.etcdCaCert = etcdCaCert;
+			this.etcdServerKey = etcdServerKey;
+			this.etcdServerCert = etcdServerCert;
+		}
+
+		public String getMasterIP() {
+			return masterIP;
+		}
+
+		public PrivateKey getCaKey() {
+			return caKey;
+		}
+
+		public X509Certificate getCaCert() {
+			return caCert;
+		}
+
+		public PrivateKey getServerKey() {
+			return serverKey;
+		}
+
+		public X509Certificate[] getServerCert() {
+			return serverCert;
+		}
+
+		public PrivateKey getKubeletKey() {
+			return kubeletKey;
+		}
+
+		public X509Certificate[] getKubeletCert() {
+			return kubeletCert;
+		}
+
+		public PrivateKey getKubeProxyKey() {
+			return kubeProxyKey;
+		}
+
+		public X509Certificate[] getKubeProxyCert() {
+			return kubeProxyCert;
+		}
+
+		public PrivateKey getEtcdCaKey() {
+			return etcdCaKey;
+		}
+
+		public X509Certificate getEtcdCaCert() {
+			return etcdCaCert;
+		}
+
+		public PrivateKey getEtcdServerKey() {
+			return etcdServerKey;
+		}
+
+		public X509Certificate[] getEtcdServerCert() {
+			return etcdServerCert;
+		}
+		
+	}
+		
 }
