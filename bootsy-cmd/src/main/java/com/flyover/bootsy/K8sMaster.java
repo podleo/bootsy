@@ -3,10 +3,17 @@
  */
 package com.flyover.bootsy;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.security.KeyPair;
+import java.security.cert.X509Certificate;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -16,6 +23,8 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.GeneralName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -65,6 +74,8 @@ public class K8sMaster extends K8sServer {
 		pullImage("portr.ctnr.ctl.io/markramach/bootsy-operator:0.0.1-SNAPSHOT");
 		// start etcd container
 		startEtcd();
+		// gernerate ca.crt, server.key, server.crt and write to the host file system.
+		provisionCertificates();
 		// start kube-apiserver
 		startKubeApiServer();
 		// start kube-controller-manager
@@ -98,6 +109,70 @@ public class K8sMaster extends K8sServer {
 		removeContainer("kube-controller-manager");
 		removeContainer("kube-apiserver");
 		removeContainer("etcd");
+		
+	}
+	
+	private void provisionCertificates() {
+		
+		try {
+			
+			Path dir = java.nio.file.Paths.get("/etc/k8s");
+			
+			if(!dir.toFile().exists()) {
+				Files.createDirectories(dir);
+			}
+			
+			Path caKeyPath = dir.resolve("ca.key");
+			Path caCertPath = dir.resolve("ca.crt");
+			Path serverKeyPath = dir.resolve("server.key");
+			Path serverCertPath = dir.resolve("server.crt");
+			
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			
+			KeyPair caKey = SSL.generateRSAKeyPair();
+			
+			SSL.write(out, caKey);
+			
+			Files.write(caKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			out.reset();
+			
+			X509Certificate caCert = SSL.generateV1Certificate(caKey, String.format("192.168.253.1"));
+			
+			SSL.write(out, caCert);
+			
+			Files.write(caCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			out.reset();
+			
+			KeyPair serverKey = SSL.generateRSAKeyPair();
+			SSL.write(out, serverKey);
+			
+			Files.write(serverKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			out.reset();
+			
+			System.out.println(InetAddress.getLocalHost().getHostAddress());
+			
+			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
+			
+			X509Certificate[] serverChain = SSL.buildChain(caKey, caCert, serverKey, "192.168.253.1", subject,
+					new GeneralName(GeneralName.iPAddress, getIpAddress().getHostAddress()),
+					new GeneralName(GeneralName.iPAddress, "192.168.253.1"),
+					new GeneralName(GeneralName.dNSName, "kubernetes"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc.cluster.local"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.cluster.local"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.skydns.local"));
+			
+			SSL.write(out, serverChain);
+			
+			Files.write(serverCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		
 	}
 	
@@ -284,6 +359,7 @@ public class K8sMaster extends K8sServer {
 
 	private void startKubeScheduler() {
 		
+		Volume k8s = new Volume("/etc/k8s");
 		
 		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
 			.withNetworkMode("host")
@@ -291,6 +367,8 @@ public class K8sMaster extends K8sServer {
 			.withCmd(
 				"--address=0.0.0.0",
 				"--master=http://localhost:8080")
+			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
+			.withName("kube-apiserver")
 			.withName("kube-scheduler")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -305,6 +383,7 @@ public class K8sMaster extends K8sServer {
 	
 	private void startKubeControllerManager() {
 		
+		Volume k8s = new Volume("/etc/k8s");
 		
 		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
 			.withNetworkMode("host")
@@ -312,8 +391,10 @@ public class K8sMaster extends K8sServer {
 			.withCmd(
 				"--address=0.0.0.0",
 				"--master=http://localhost:8080",
-				"--root-ca-file=/var/lib/k8s/ca.crt",
-				"--service-account-private-key-file=/var/lib/k8s/server.key")
+				"--root-ca-file=/etc/k8s/ca.crt",
+				"--service-account-private-key-file=/etc/k8s/server.key")
+			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
+			.withName("kube-apiserver")
 			.withName("kube-controller-manager")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -328,6 +409,8 @@ public class K8sMaster extends K8sServer {
 
 	private void startKubeApiServer() {
 		
+		Volume k8s = new Volume("/etc/k8s");
+		
 		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
 			.withNetworkMode("host")
 			.withPortBindings(PortBinding.parse("8080:8080"))
@@ -339,9 +422,11 @@ public class K8sMaster extends K8sServer {
 				"--storage-backend=etcd2",
 				"--allow-privileged=true",
 				"--admission-control=ServiceAccount",
-				"--client-ca-file=/var/lib/k8s/ca.crt",
-				"--tls-cert-file=/var/lib/k8s/server.cert",
-				"--tls-private-key-file=/var/lib/k8s/server.key")
+				"--client-ca-file=/etc/k8s/ca.crt",
+				"--tls-cert-file=/etc/k8s/server.crt",
+				"--tls-private-key-file=/etc/k8s/server.key")
+			.withVolumes(k8s)
+			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
 			.withName("kube-apiserver")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
