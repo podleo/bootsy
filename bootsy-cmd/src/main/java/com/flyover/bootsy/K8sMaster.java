@@ -152,13 +152,12 @@ public class K8sMaster extends K8sServer {
 			
 			out.reset();
 			
-			System.out.println(InetAddress.getLocalHost().getHostAddress());
-			
 			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
 			
 			X509Certificate[] serverChain = SSL.buildChain(caKey, caCert, serverKey, "192.168.253.1", subject,
 					new GeneralName(GeneralName.iPAddress, getIpAddress().getHostAddress()),
 					new GeneralName(GeneralName.iPAddress, "192.168.253.1"),
+					new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
 					new GeneralName(GeneralName.dNSName, "kubernetes"),
 					new GeneralName(GeneralName.dNSName, "kubernetes.default"),
 					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc"),
@@ -417,10 +416,14 @@ public class K8sMaster extends K8sServer {
 			.withEntrypoint("kube-apiserver")
 			.withCmd(
 				"--address=0.0.0.0",
+				"--bind-address=0.0.0.0",
+				"--secure-port=443",
 				"--service-cluster-ip-range=192.168.253.0/24",
 				"--etcd-servers=http://localhost:4001",
 				"--storage-backend=etcd2",
 				"--allow-privileged=true",
+				"--anonymous-auth=false",
+				"--authorization-mode=RBAC",
 				"--admission-control=ServiceAccount",
 				"--client-ca-file=/etc/k8s/ca.crt",
 				"--tls-cert-file=/etc/k8s/server.crt",
