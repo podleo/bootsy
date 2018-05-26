@@ -99,6 +99,80 @@ public class K8sServer {
 		
 	}
 
+	protected void deployKubeletKubeconfig(String apiServerEndpoint) {
+		
+		LOG.debug(String.format("deploying kubelet kubeconfig "));
+		
+		VelocityEngine velocityEngine = new VelocityEngine();
+		velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
+		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+		velocityEngine.init();
+		
+		Template kubeletService = velocityEngine.getTemplate("kubeconfig.kubelet");
+		
+		VelocityContext context = new VelocityContext();
+		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
+		
+		StringWriter kubeletServiceValue = new StringWriter();
+		
+		kubeletService.merge(context, kubeletServiceValue);
+		
+		Path k8s = java.nio.file.Paths.get("/etc/k8s");
+		Path kubeconfig = k8s.resolve("kubeconfig.kubelet");
+		
+		try {
+			
+			Files.createDirectories(k8s);
+			
+			Files.write(kubeconfig, kubeletServiceValue.toString().getBytes(), 
+					StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			LOG.debug(String.format("kubeconfig created at /etc/k8s/kubeconfig.kubelet"));
+			
+		} catch (IOException e) {
+			throw new RuntimeException("failed to write kubelet kubeconfig file.", e);
+		}
+		
+	}
+	
+	protected void deployKubeProxyKubeconfig(String apiServerEndpoint) {
+		
+		LOG.debug(String.format("deploying kube-proxy kubeconfig "));
+		
+		VelocityEngine velocityEngine = new VelocityEngine();
+		velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
+		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+		velocityEngine.init();
+		
+		Template kubeletService = velocityEngine.getTemplate("kubeconfig.kube-proxy");
+		
+		VelocityContext context = new VelocityContext();
+		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
+		
+		StringWriter kubeletServiceValue = new StringWriter();
+		
+		kubeletService.merge(context, kubeletServiceValue);
+		
+		Path k8s = java.nio.file.Paths.get("/etc/k8s");
+		Path kubeconfig = k8s.resolve("kubeconfig.kube-proxy");
+		
+		try {
+			
+			Files.createDirectories(k8s);
+			
+			Files.write(kubeconfig, kubeletServiceValue.toString().getBytes(), 
+					StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			LOG.debug(String.format("kubeconfig created at /etc/k8s/kubeconfig.kube-proxy"));
+			
+		} catch (IOException e) {
+			throw new RuntimeException("failed to write kube-proxy kubeconfig file.", e);
+		}
+		
+	}
+	
 	protected void deployKubelet(String apiServerEndpoint, String labels) {
 		
 		LOG.debug(String.format("deploying kubelet service "));
@@ -156,6 +230,7 @@ public class K8sServer {
 		
 		VelocityContext context = new VelocityContext();
 		context.put("api_server_endpoint", apiServerEndpoint);
+		context.put("ip_address", getIpAddress().getHostAddress());
 		
 		StringWriter kubeletServiceValue = new StringWriter();
 		

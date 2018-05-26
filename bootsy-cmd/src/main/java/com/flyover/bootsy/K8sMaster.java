@@ -6,7 +6,6 @@ package com.flyover.bootsy;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -90,8 +89,12 @@ public class K8sMaster extends K8sServer {
 		deployBootsyComponents();
 		// deploy kubectl
 		deployKubernetesBinaries();
+		// deploy kubeconfig
+		deployKubeletKubeconfig(apiServerEndpoint);
 		// deploy kubelet
 		deployKubelet(apiServerEndpoint, "master=true");
+		// deploy kubeconfig
+		deployKubeProxyKubeconfig(apiServerEndpoint);
 		// deploy kube-proxy
 		deployKubeProxy(apiServerEndpoint);
 		// start kubelet
@@ -126,6 +129,10 @@ public class K8sMaster extends K8sServer {
 			Path caCertPath = dir.resolve("ca.crt");
 			Path serverKeyPath = dir.resolve("server.key");
 			Path serverCertPath = dir.resolve("server.crt");
+			Path kubeletKeyPath = dir.resolve("kubelet.key");
+			Path kubeletCertPath = dir.resolve("kubelet.crt");
+			Path kubeProxyKeyPath = dir.resolve("kube-proxy.key");
+			Path kubeProxyCertPath = dir.resolve("kube-proxy.crt");
 			
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			
@@ -154,7 +161,7 @@ public class K8sMaster extends K8sServer {
 			
 			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
 			
-			X509Certificate[] serverChain = SSL.buildChain(caKey, caCert, serverKey, "192.168.253.1", subject,
+			X509Certificate[] serverChain = SSL.generateSSLCertificate(caKey, caCert, serverKey, "192.168.253.1", subject,
 					new GeneralName(GeneralName.iPAddress, getIpAddress().getHostAddress()),
 					new GeneralName(GeneralName.iPAddress, "192.168.253.1"),
 					new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
@@ -168,6 +175,44 @@ public class K8sMaster extends K8sServer {
 			SSL.write(out, serverChain);
 			
 			Files.write(serverCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			// kubelet client certificate
+			out.reset();
+			
+			KeyPair kubeletKey = SSL.generateRSAKeyPair();
+			SSL.write(out, kubeletKey);
+			
+			Files.write(kubeletKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			out.reset();
+			
+			subject = new X500Name(String.format("CN=kubelet, O=system:nodes"));
+			
+			X509Certificate[] kubeletChain = SSL.generateClientCertificate(
+					caKey, caCert, kubeletKey, "192.168.253.1", subject);
+			
+			SSL.write(out, kubeletChain);
+			
+			Files.write(kubeletCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			// kube-proxy client certificate
+			out.reset();
+			
+			KeyPair kubeProxyKey = SSL.generateRSAKeyPair();
+			SSL.write(out, kubeProxyKey);
+			
+			Files.write(kubeProxyKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+			out.reset();
+			
+			subject = new X500Name(String.format("CN=system:kube-proxy, O=system:node-proxier"));
+			
+			X509Certificate[] kubeProxyChain = SSL.generateClientCertificate(
+					caKey, caCert, kubeProxyKey, "192.168.253.1", subject);
+			
+			SSL.write(out, kubeProxyChain);
+			
+			Files.write(kubeProxyCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 			
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -311,6 +356,17 @@ public class K8sMaster extends K8sServer {
 				LOG.info("the component with apiVersion {} kind {} namespace {} and name {} already exists",
 					comp.getApiVersion(), comp.getKind(), comp.getMetadata().getNamespace(), comp.getMetadata().getName());
 				
+				try {
+				
+					new RestTemplate().put(uri, comp);
+					
+				} catch (HttpClientErrorException e1) {
+					
+					LOG.info("the component with apiVersion {} kind {} namespace {} and name {} could not be updated",
+						comp.getApiVersion(), comp.getKind(), comp.getMetadata().getNamespace(), comp.getMetadata().getName());
+					
+				}
+				
 			} else {
 				
 				throw e;
@@ -412,10 +468,9 @@ public class K8sMaster extends K8sServer {
 		
 		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
 			.withNetworkMode("host")
-			.withPortBindings(PortBinding.parse("8080:8080"))
+			.withPortBindings(PortBinding.parse("8080:8080"), PortBinding.parse("443:443"))
 			.withEntrypoint("kube-apiserver")
 			.withCmd(
-				"--address=0.0.0.0",
 				"--bind-address=0.0.0.0",
 				"--secure-port=443",
 				"--service-cluster-ip-range=192.168.253.0/24",

@@ -89,7 +89,7 @@ public class SSL {
 
 	}
 
-	public static X509Certificate[] buildChain(KeyPair rootPair, X509Certificate rootCert, KeyPair serverPair, 
+	public static X509Certificate[] generateSSLCertificate(KeyPair rootPair, X509Certificate rootCert, KeyPair serverPair, 
 			String issuer, X500Name subject, GeneralName...alternativeNames) throws Exception {
 
 		Calendar c = Calendar.getInstance();
@@ -126,6 +126,45 @@ public class SSL {
 				.getCertificate(builder.build(signer));
 
 		return new X509Certificate[] { issuedCert, rootCert };
+
+	}
+	
+	public static X509Certificate[] generateClientCertificate(KeyPair caKey, X509Certificate caCert, KeyPair clientKey, 
+			String issuer, X500Name subject) throws Exception {
+
+		Calendar c = Calendar.getInstance();
+		c.add(Calendar.YEAR, 10);
+		
+		X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+				new X500Name(String.format("CN=%s", issuer)), 
+				BigInteger.valueOf(System.currentTimeMillis()), 
+				new Date(), c.getTime(), 
+				subject,
+				SubjectPublicKeyInfo.getInstance(ASN1Sequence.getInstance(clientKey.getPublic().getEncoded())));
+
+		builder.addExtension(Extension.authorityKeyIdentifier, false,
+				new JcaX509ExtensionUtils()
+						.createAuthorityKeyIdentifier(
+								caCert.getPublicKey(),
+								new X500Principal(String.format("CN=%s", issuer)),
+								caCert.getSerialNumber()));
+
+		builder.addExtension(Extension.basicConstraints, false, new BasicConstraints(false));
+
+		builder.addExtension(Extension.keyUsage, false, new KeyUsage(
+				KeyUsage.keyEncipherment | KeyUsage.dataEncipherment));
+
+		builder.addExtension(Extension.extendedKeyUsage, false,
+				new ExtendedKeyUsage(new KeyPurposeId[]{ 
+						KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth }));
+
+		ContentSigner signer = new JcaContentSignerBuilder(
+				"SHA1WithRSAEncryption").build(caKey.getPrivate());
+
+		X509Certificate issuedCert = new JcaX509CertificateConverter()
+				.getCertificate(builder.build(signer));
+
+		return new X509Certificate[] { issuedCert, caCert };
 
 	}
 	

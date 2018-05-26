@@ -104,6 +104,10 @@
 			<artifactId>jsch</artifactId>
 			<version>0.1.52</version>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+		</dependency>
 	</dependencies>
 	<build>
 		<finalName>bootsy-operator</finalName>

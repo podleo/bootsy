@@ -3,13 +3,32 @@
  */
 package com.flyover.bootsy.operator.k8s;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import javax.annotation.PostConstruct;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+
+import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -22,10 +41,37 @@ public class KubeAdapter {
 	
 	private String endpoint;
 	private RestTemplate restTemplate;
+	@Value("file:/var/run/secrets/kubernetes.io/serviceaccount/token")
+	private Resource token;
 	
 	public KubeAdapter(String endpoint) {
 		this.endpoint = endpoint;
 		this.restTemplate = new RestTemplate();
+	}
+	
+	@PostConstruct
+	public void afterPropertiesSet() {
+		
+		this.restTemplate.setRequestFactory(new SkipCertVerificationClientHttpRequestFactory());
+		
+		try {
+			
+			String t = IOUtils.toString(token.getInputStream(), "UTF-8");
+			
+			ClientHttpRequestInterceptor interceptor = (req, body, ex) -> {
+				
+				req.getHeaders().set("Authorization", String.format("Bearer %s", t));
+				
+				return ex.execute(req, body);
+				
+			};
+
+			this.restTemplate.setInterceptors(Arrays.asList(interceptor));
+			
+		} catch (IOException e) {
+			throw new RuntimeException("failed while attempting to read token", e);
+		}
+		
 	}
 	
 	public KubeNodeControllerList getKubeNodeControllers() {
@@ -138,6 +184,64 @@ public class KubeAdapter {
 			
 		}
 		
+	}
+	
+	private static class SkipCertVerificationClientHttpRequestFactory extends SimpleClientHttpRequestFactory {
+		
+		@Override
+		protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+			
+			if (connection instanceof HttpsURLConnection) {
+				prepareHttpsConnection((HttpsURLConnection) connection);
+			}
+			
+			super.prepareConnection(connection, httpMethod);
+			
+		}
+
+		private void prepareHttpsConnection(HttpsURLConnection connection) {
+			
+			connection.setHostnameVerifier(new SkipHostnameVerifier());
+			
+			try {
+				connection.setSSLSocketFactory(createSslSocketFactory());
+			} catch (Exception ex) {}
+			
+		}
+
+		private SSLSocketFactory createSslSocketFactory() throws Exception {
+			
+			SSLContext context = SSLContext.getInstance("TLS");
+			context.init(null, new TrustManager[] { new SkipX509TrustManager() }, new SecureRandom());
+			
+			return context.getSocketFactory();
+			
+		}
+		
+	}
+	
+	private static class SkipHostnameVerifier implements HostnameVerifier {
+
+		@Override
+		public boolean verify(String s, SSLSession sslSession) {
+			return true;
+		}
+
+	}
+
+	private static class SkipX509TrustManager implements X509TrustManager {
+
+		@Override
+		public X509Certificate[] getAcceptedIssuers() {
+			return new X509Certificate[0];
+		}
+
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+
 	}
 
 }

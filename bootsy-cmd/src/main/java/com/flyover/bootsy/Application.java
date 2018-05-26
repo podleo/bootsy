@@ -25,7 +25,7 @@ public class Application {
 			.setDefault("node");
 		parser.addArgument("--api-server-endpoint")
 			.help("The api server endpoint to use during kubelet and kube-proxy initialization.")
-			.setDefault("http://127.0.0.1:8080");
+			.setDefault("https://127.0.0.1");
     	
     	MutuallyExclusiveGroup group = parser.addMutuallyExclusiveGroup();
     	
