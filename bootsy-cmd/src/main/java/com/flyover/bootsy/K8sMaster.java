@@ -68,11 +68,11 @@ public class K8sMaster extends K8sServer {
 		// pull etcd image
 		pullImage("quay.io/coreos/etcd:v2.3.8");
 		// pull kubernetes image
-		pullImage("portr.ctnr.ctl.io/markramach/kube-base:1.7.11");
+		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11");
 		// pull bootsy image
-		pullImage("portr.ctnr.ctl.io/markramach/bootsy-cmd:0.0.1-SNAPSHOT");
+		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:0.0.1-SNAPSHOT");
 		// pull bootsy operator image
-		pullImage("portr.ctnr.ctl.io/markramach/bootsy-operator:0.0.1-SNAPSHOT");
+		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-operator:0.0.1-SNAPSHOT");
 		// initialize security keys and certificates.
 		MasterContext ctx = initializeMasterContext();
 		// install keys and certificates to host
@@ -443,7 +443,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
 			.withNetworkMode("host")
 			.withEntrypoint("kube-scheduler")
 			.withCmd(
@@ -467,7 +467,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
 			.withNetworkMode("host")
 			.withEntrypoint("kube-controller-manager")
 			.withCmd(
@@ -493,7 +493,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
 			.withNetworkMode("host")
 			.withPortBindings(PortBinding.parse("8080:8080"), PortBinding.parse("443:443"))
 			.withEntrypoint("kube-apiserver")

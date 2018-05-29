@@ -442,7 +442,7 @@ public class K8sServer {
 		Volume bin = new Volume("/usr/bin");
 		Volume opt = new Volume("/opt");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/markramach/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
 			.withVolumes(bin, opt)
 			.withBinds(
 				new Bind("/usr/bin", bin),

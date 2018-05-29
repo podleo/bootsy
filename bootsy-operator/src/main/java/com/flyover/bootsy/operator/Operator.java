@@ -10,12 +10,10 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.security.KeyFactory;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Collections;
@@ -242,10 +240,10 @@ public class Operator {
 				// write keys and certificates
 				installKeysAndCertificates(master, kn);
 				
-				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/markramach/bootsy-cmd:latest");
+				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/bootsy/bootsy-cmd:latest");
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"portr.ctnr.ctl.io/markramach/bootsy-cmd:latest --init --type=node --api-server-endpoint=https://%s", 
+						"portr.ctnr.ctl.io/bootsy/bootsy-cmd:latest --init --type=node --api-server-endpoint=https://%s", 
 							masterIpAddress));
 			
 				// mark kubelet as ready
