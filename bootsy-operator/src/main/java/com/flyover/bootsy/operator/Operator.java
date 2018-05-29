@@ -3,24 +3,40 @@
  */
 package com.flyover.bootsy.operator;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.security.KeyFactory;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
 import com.flyover.bootsy.operator.k8s.KubeNode;
 import com.flyover.bootsy.operator.k8s.KubeNodeController;
 import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
+import com.flyover.bootsy.operator.k8s.SecuritySpec;
 import com.flyover.bootsy.operator.provders.Provider;
 import com.flyover.bootsy.operator.ssh.Connection;
 
@@ -222,11 +238,14 @@ public class Operator {
 			String masterIpAddress = master.getSpec().getIpAddress();
 			
 			try {
+			
+				// write keys and certificates
+				installKeysAndCertificates(master, kn);
 				
 				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/markramach/bootsy-cmd:latest");
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"portr.ctnr.ctl.io/markramach/bootsy-cmd:latest --init --type=node --api-server-endpoint=http://%s:8080", 
+						"portr.ctnr.ctl.io/markramach/bootsy-cmd:latest --init --type=node --api-server-endpoint=https://%s", 
 							masterIpAddress));
 			
 				// mark kubelet as ready
@@ -267,6 +286,83 @@ public class Operator {
 				return;
 			}
 			
+		}
+		
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void installKeysAndCertificates(KubeNode master, KubeNode kn) {
+		
+		try {
+			
+			Map<String, Object> map = (Map<String, Object>) master.getSpec().any().get("security");
+			SecuritySpec security = new ObjectMapper().convertValue(map, SecuritySpec.class);
+					
+			new Connection(kubeAdapter, kn).raw("mkdir -p /etc/k8s");
+
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			write(out, privateKey(security.getCa().getKey()));
+			new Connection(kubeAdapter, kn).put("ca.key", out.toByteArray(), "/etc/k8s/ca.key");
+			out.reset();
+			
+			write(out, security.getCa().getCert().stream().map(this::certificate).toArray());
+			new Connection(kubeAdapter, kn).put("ca.crt", out.toByteArray(), "/etc/k8s/ca.crt");
+			out.reset();
+			
+			write(out, privateKey(security.getServer().getKey()));
+			new Connection(kubeAdapter, kn).put("server.key", out.toByteArray(), "/etc/k8s/server.key");
+			out.reset();
+			
+			write(out, security.getServer().getCert().stream().map(this::certificate).toArray());
+			new Connection(kubeAdapter, kn).put("server.crt", out.toByteArray(), "/etc/k8s/server.crt");
+			out.reset();
+			
+			write(out, privateKey(security.getKubelet().getKey()));
+			new Connection(kubeAdapter, kn).put("kubelet.key", out.toByteArray(), "/etc/k8s/kubelet.key");
+			out.reset();
+			
+			write(out, security.getKubelet().getCert().stream().map(this::certificate).toArray());
+			new Connection(kubeAdapter, kn).put("kubelet.crt", out.toByteArray(), "/etc/k8s/kubelet.crt");
+			out.reset();
+			
+			write(out, privateKey(security.getKubeProxy().getKey()));
+			new Connection(kubeAdapter, kn).put("kube-proxy.key", out.toByteArray(), "/etc/k8s/kube-proxy.key");
+			out.reset();
+			
+			write(out, security.getKubeProxy().getCert().stream().map(this::certificate).toArray());
+			new Connection(kubeAdapter, kn).put("kube-proxy.crt", out.toByteArray(), "/etc/k8s/kube-proxy.crt");
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException("failed to write security keys and certificates to host: " + e.getMessage(), e);
+		}
+		
+	}
+	
+	private PrivateKey privateKey(String data) {
+		
+		try {
+			
+			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+			
+			return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(data)));
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to load private key", e);
+		}
+		
+	}
+	
+	private X509Certificate certificate(String data) {
+		
+		try {
+			
+			CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+			
+			return (X509Certificate)certFactory.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(data)));
+			
+		} catch (CertificateException e) {
+			throw new RuntimeException("failed to load certificate", e);
 		}
 		
 	}
@@ -316,6 +412,22 @@ public class Operator {
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to generate checksum.", e);
 		}
+		
+	}
+
+	public void write(OutputStream out, Object o) throws Exception {
+		write(out, new Object[]{o});
+	}
+	
+	public void write(OutputStream out, Object[] objects) throws Exception {
+		
+		JcaPEMWriter pem = new JcaPEMWriter(new OutputStreamWriter(out));
+
+		for (Object o : objects) {
+			pem.writeObject(o);
+		}
+		
+	    pem.close();
 		
 	}
 	

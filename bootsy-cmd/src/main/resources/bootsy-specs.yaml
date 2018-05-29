@@ -29,6 +29,18 @@ items:
     - update
     - patch
     - delete
+  - apiGroups:
+    - ''
+    resources:
+    - secrets
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
 - apiVersion: rbac.authorization.k8s.io/v1beta1
   kind: ClusterRoleBinding
   metadata:
@@ -57,6 +69,18 @@ items:
     - kubenodes
     - kubenodecontrollers
     - kubenodeproviders
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+  - apiGroups:
+    - ''
+    resources:
+    - secrets
     verbs:
     - get
     - list
@@ -120,6 +144,7 @@ items:
       plural: kubenodeproviders
       singular: kubenodeproviders
       shortNames: [ knp ]
+      
 - apiVersion: bootsy.flyover.com/v1
   kind: KubeNode
   metadata:
@@ -131,11 +156,32 @@ items:
     provider: bootstrap
     ipAddress: "$ip_address"
     version: "$version"
+    security:
+      ca:
+        key: "$ca_key"
+        cert:
+        - "$ca_cert"
+      server:
+        key: "$server_key"
+        cert: 
+        - "$server_cert_0"
+        - "$server_cert_1"
+      kubelet:
+        key: "$kubelet_key"
+        cert: 
+        - "$kubelet_cert_0"
+        - "$kubelet_cert_1"
+      kubeProxy:
+        key: "$kube_proxy_key"
+        cert: 
+        - "$kube_proxy_cert_0"
+        - "$kube_proxy_cert_1"
     connector:
       type: ssh
       authSecret:
         namespace: bootsy
         name: "$auth_secret_name"
+        
 - apiVersion: v1
   kind: Namespace
   metadata:

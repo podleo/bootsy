@@ -12,7 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -71,10 +73,12 @@ public class K8sMaster extends K8sServer {
 		pullImage("portr.ctnr.ctl.io/markramach/bootsy-cmd:0.0.1-SNAPSHOT");
 		// pull bootsy operator image
 		pullImage("portr.ctnr.ctl.io/markramach/bootsy-operator:0.0.1-SNAPSHOT");
+		// initialize security keys and certificates.
+		MasterContext ctx = initializeMasterContext();
+		// install keys and certificates to host
+		installKeysAndCertificates(ctx);
 		// start etcd container
 		startEtcd();
-		// gernerate ca.crt, server.key, server.crt and write to the host file system.
-		provisionCertificates();
 		// start kube-apiserver
 		startKubeApiServer();
 		// start kube-controller-manager
@@ -86,7 +90,7 @@ public class K8sMaster extends K8sServer {
 		// deploy weave components
 		deployWeaveComponents();
 		// deploy bootsy components
-		deployBootsyComponents();
+		deployBootsyComponents(ctx);
 		// deploy kubectl
 		deployKubernetesBinaries();
 		// deploy kubeconfig
@@ -115,10 +119,62 @@ public class K8sMaster extends K8sServer {
 		
 	}
 	
-	private void provisionCertificates() {
-		
+	private MasterContext initializeMasterContext() {
+
 		try {
 			
+			String masterIP = getIpAddress().getHostAddress();
+			
+			// ca certificate
+			KeyPair caKey = SSL.generateRSAKeyPair();
+			
+			X509Certificate caCert = SSL.generateV1Certificate(caKey, String.format("192.168.253.1"));
+			
+			// server certificate
+			KeyPair serverKey = SSL.generateRSAKeyPair();
+			
+			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
+			
+			X509Certificate[] serverChain = SSL.generateSSLCertificate(caKey, caCert, serverKey, "192.168.253.1", subject,
+					new GeneralName(GeneralName.iPAddress, masterIP),
+					new GeneralName(GeneralName.iPAddress, "192.168.253.1"),
+					new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
+					new GeneralName(GeneralName.dNSName, "kubernetes"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc.cluster.local"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.cluster.local"),
+					new GeneralName(GeneralName.dNSName, "kubernetes.default.skydns.local"));
+			
+			// kubelet client certificate
+			KeyPair kubeletKey = SSL.generateRSAKeyPair();
+
+			subject = new X500Name(String.format("CN=kubelet, O=system:nodes"));
+			
+			X509Certificate[] kubeletChain = SSL.generateClientCertificate(
+					caKey, caCert, kubeletKey, "192.168.253.1", subject);
+			
+			// kube-proxy client certificate
+			KeyPair kubeProxyKey = SSL.generateRSAKeyPair();
+			
+			subject = new X500Name(String.format("CN=system:kube-proxy, O=system:node-proxier"));
+			
+			X509Certificate[] kubeProxyChain = SSL.generateClientCertificate(
+					caKey, caCert, kubeProxyKey, "192.168.253.1", subject);
+			
+			return new MasterContext(masterIP, caKey.getPrivate(), caCert, serverKey.getPrivate(), serverChain, 
+					kubeletKey.getPrivate(), kubeletChain, kubeProxyKey.getPrivate(), kubeProxyChain);
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to load security keys and certificates", e);
+		}
+		
+	}
+	
+	private void installKeysAndCertificates(MasterContext ctx) {
+		
+		try {
+		
 			Path dir = java.nio.file.Paths.get("/etc/k8s");
 			
 			if(!dir.toFile().exists()) {
@@ -136,86 +192,39 @@ public class K8sMaster extends K8sServer {
 			
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			
-			KeyPair caKey = SSL.generateRSAKeyPair();
-			
-			SSL.write(out, caKey);
-			
+			SSL.write(out, ctx.getCaKey());
 			Files.write(caKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
 			out.reset();
 			
-			X509Certificate caCert = SSL.generateV1Certificate(caKey, String.format("192.168.253.1"));
-			
-			SSL.write(out, caCert);
-			
+			SSL.write(out, ctx.getCaCert());
 			Files.write(caCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
 			out.reset();
 			
-			KeyPair serverKey = SSL.generateRSAKeyPair();
-			SSL.write(out, serverKey);
-			
+			SSL.write(out, ctx.getServerKey());
 			Files.write(serverKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
 			out.reset();
 			
-			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
-			
-			X509Certificate[] serverChain = SSL.generateSSLCertificate(caKey, caCert, serverKey, "192.168.253.1", subject,
-					new GeneralName(GeneralName.iPAddress, getIpAddress().getHostAddress()),
-					new GeneralName(GeneralName.iPAddress, "192.168.253.1"),
-					new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
-					new GeneralName(GeneralName.dNSName, "kubernetes"),
-					new GeneralName(GeneralName.dNSName, "kubernetes.default"),
-					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc"),
-					new GeneralName(GeneralName.dNSName, "kubernetes.default.svc.cluster.local"),
-					new GeneralName(GeneralName.dNSName, "kubernetes.default.cluster.local"),
-					new GeneralName(GeneralName.dNSName, "kubernetes.default.skydns.local"));
-			
-			SSL.write(out, serverChain);
-			
+			SSL.write(out, ctx.getServerCert());
 			Files.write(serverCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
-			// kubelet client certificate
 			out.reset();
 			
-			KeyPair kubeletKey = SSL.generateRSAKeyPair();
-			SSL.write(out, kubeletKey);
-			
+			SSL.write(out, ctx.getKubeletKey());
 			Files.write(kubeletKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
 			out.reset();
 			
-			subject = new X500Name(String.format("CN=kubelet, O=system:nodes"));
-			
-			X509Certificate[] kubeletChain = SSL.generateClientCertificate(
-					caKey, caCert, kubeletKey, "192.168.253.1", subject);
-			
-			SSL.write(out, kubeletChain);
-			
+			SSL.write(out, ctx.getKubeletCert());
 			Files.write(kubeletCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
-			// kube-proxy client certificate
 			out.reset();
 			
-			KeyPair kubeProxyKey = SSL.generateRSAKeyPair();
-			SSL.write(out, kubeProxyKey);
-			
+			SSL.write(out, ctx.getKubeProxyKey());
 			Files.write(kubeProxyKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-			
 			out.reset();
 			
-			subject = new X500Name(String.format("CN=system:kube-proxy, O=system:node-proxier"));
-			
-			X509Certificate[] kubeProxyChain = SSL.generateClientCertificate(
-					caKey, caCert, kubeProxyKey, "192.168.253.1", subject);
-			
-			SSL.write(out, kubeProxyChain);
-			
+			SSL.write(out, ctx.getKubeProxyCert());
 			Files.write(kubeProxyCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 			
 		} catch (Exception e) {
-			e.printStackTrace();
+			throw new RuntimeException("failed to write security keys and certificates to host", e);
 		}
 		
 	}
@@ -241,7 +250,7 @@ public class K8sMaster extends K8sServer {
 		
 	}
 	
-	private void deployBootsyComponents() {
+	private void deployBootsyComponents(MasterContext ctx) {
 		
 		LOG.info("creating bootsy components");
 		
@@ -253,9 +262,27 @@ public class K8sMaster extends K8sServer {
 		Template template = velocityEngine.getTemplate("bootsy-specs.yaml");
 		
 		VelocityContext context = new VelocityContext();
-		context.put("ip_address", getIpAddress().getHostAddress());
+		context.put("ip_address", ctx.getMasterIP());
 		context.put("version", "1.7.11");
 		context.put("auth_secret_name", UUID.randomUUID().toString());
+		
+		try {
+			
+			context.put("ca_key", Base64.getEncoder().encodeToString(ctx.getCaKey().getEncoded()));
+			context.put("ca_cert", Base64.getEncoder().encodeToString(ctx.getCaCert().getEncoded()));
+			context.put("server_key", Base64.getEncoder().encodeToString(ctx.getServerKey().getEncoded()));
+			context.put("server_cert_0", Base64.getEncoder().encodeToString(ctx.getServerCert()[0].getEncoded()));
+			context.put("server_cert_1", Base64.getEncoder().encodeToString(ctx.getServerCert()[1].getEncoded()));
+			context.put("kubelet_key", Base64.getEncoder().encodeToString(ctx.getKubeletKey().getEncoded()));
+			context.put("kubelet_cert_0", Base64.getEncoder().encodeToString(ctx.getKubeletCert()[0].getEncoded()));
+			context.put("kubelet_cert_1", Base64.getEncoder().encodeToString(ctx.getKubeletCert()[1].getEncoded()));
+			context.put("kube_proxy_key", Base64.getEncoder().encodeToString(ctx.getKubeProxyKey().getEncoded()));
+			context.put("kube_proxy_cert_0", Base64.getEncoder().encodeToString(ctx.getKubeProxyCert()[0].getEncoded()));
+			context.put("kube_proxy_cert_1", Base64.getEncoder().encodeToString(ctx.getKubeProxyCert()[1].getEncoded()));
+			
+		} catch (CertificateEncodingException e) {
+			LOG.error("failed to configure security keys and certificates on mast KubeNode spec", e);
+		}
 		
 		StringWriter value = new StringWriter();
 		
@@ -518,5 +545,5 @@ public class K8sMaster extends K8sServer {
 		LOG.debug(String.format("etcd container started id: %s", res.getId()));
 		
 	}
-
+	
 }

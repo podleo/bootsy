@@ -36,8 +36,12 @@ public class K8sNode extends K8sServer {
 		pullImage("portr.ctnr.ctl.io/markramach/bootsy-cmd:0.0.1-SNAPSHOT");
 		// deploy kubectl
 		deployKubernetesBinaries();
+		// deploy kubeconfig
+		deployKubeletKubeconfig(apiServerEndpoint);
 		// deploy kubelet
 		deployKubelet(apiServerEndpoint, "node=true");
+		// deploy kubeconfig
+		deployKubeProxyKubeconfig(apiServerEndpoint);
 		// deploy kube-proxy
 		deployKubeProxy(apiServerEndpoint);
 		// start kubelet

@@ -11,6 +11,8 @@ import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -496,4 +498,70 @@ public class K8sServer {
 		
 	}
 
+	protected static class MasterContext {
+		
+		private String masterIP;
+		private PrivateKey caKey;
+		private X509Certificate caCert;
+		private PrivateKey serverKey;
+		private X509Certificate[] serverCert;
+		private PrivateKey kubeletKey;
+		private X509Certificate[] kubeletCert;
+		private PrivateKey kubeProxyKey;
+		private X509Certificate[] kubeProxyCert;
+		
+		public MasterContext(String masterIP, PrivateKey caKey,
+				X509Certificate caCert, PrivateKey serverKey,
+				X509Certificate[] serverCert, PrivateKey kubeletKey,
+				X509Certificate[] kubeletCert, PrivateKey kubeProxyKey,
+				X509Certificate[] kubeProxyCert) {
+			this.masterIP = masterIP;
+			this.caKey = caKey;
+			this.caCert = caCert;
+			this.serverKey = serverKey;
+			this.serverCert = serverCert;
+			this.kubeletKey = kubeletKey;
+			this.kubeletCert = kubeletCert;
+			this.kubeProxyKey = kubeProxyKey;
+			this.kubeProxyCert = kubeProxyCert;
+		}
+
+		public String getMasterIP() {
+			return masterIP;
+		}
+
+		public PrivateKey getCaKey() {
+			return caKey;
+		}
+
+		public X509Certificate getCaCert() {
+			return caCert;
+		}
+
+		public PrivateKey getServerKey() {
+			return serverKey;
+		}
+
+		public X509Certificate[] getServerCert() {
+			return serverCert;
+		}
+
+		public PrivateKey getKubeletKey() {
+			return kubeletKey;
+		}
+
+		public X509Certificate[] getKubeletCert() {
+			return kubeletCert;
+		}
+
+		public PrivateKey getKubeProxyKey() {
+			return kubeProxyKey;
+		}
+
+		public X509Certificate[] getKubeProxyCert() {
+			return kubeProxyCert;
+		}
+		
+	}
+		
 }
