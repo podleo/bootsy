@@ -30,9 +30,9 @@ public class K8sNode extends K8sServer {
 		// bootstrap host with ssh credentials
 		bootstrapSsh();
 		// pull kubernetes image
-		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11");
+		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13");
 		// pull bootsy image
-		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:0.0.1-SNAPSHOT");
+		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:1.8.13");
 		// deploy kubectl
 		deployKubernetesBinaries();
 		// deploy kubeconfig

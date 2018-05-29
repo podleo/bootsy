@@ -68,11 +68,11 @@ public class K8sMaster extends K8sServer {
 		// pull etcd image
 		pullImage("quay.io/coreos/etcd:v2.3.8");
 		// pull kubernetes image
-		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11");
+		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13");
 		// pull bootsy image
-		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:0.0.1-SNAPSHOT");
+		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:1.8.13");
 		// pull bootsy operator image
-		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-operator:0.0.1-SNAPSHOT");
+		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-operator:1.8.13");
 		// initialize security keys and certificates.
 		MasterContext ctx = initializeMasterContext();
 		// install keys and certificates to host
@@ -443,14 +443,13 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
 			.withNetworkMode("host")
 			.withEntrypoint("kube-scheduler")
 			.withCmd(
 				"--address=0.0.0.0",
 				"--master=http://localhost:8080")
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-apiserver")
 			.withName("kube-scheduler")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -467,7 +466,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
 			.withNetworkMode("host")
 			.withEntrypoint("kube-controller-manager")
 			.withCmd(
@@ -476,7 +475,6 @@ public class K8sMaster extends K8sServer {
 				"--root-ca-file=/etc/k8s/ca.crt",
 				"--service-account-private-key-file=/etc/k8s/server.key")
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-apiserver")
 			.withName("kube-controller-manager")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -493,7 +491,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
 			.withNetworkMode("host")
 			.withPortBindings(PortBinding.parse("8080:8080"), PortBinding.parse("443:443"))
 			.withEntrypoint("kube-apiserver")

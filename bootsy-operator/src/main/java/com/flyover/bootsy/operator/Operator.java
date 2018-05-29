@@ -240,10 +240,10 @@ public class Operator {
 				// write keys and certificates
 				installKeysAndCertificates(master, kn);
 				
-				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/bootsy/bootsy-cmd:latest");
+				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/bootsy/bootsy-cmd:1.8.13");
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"portr.ctnr.ctl.io/bootsy/bootsy-cmd:latest --init --type=node --api-server-endpoint=https://%s", 
+						"portr.ctnr.ctl.io/bootsy/bootsy-cmd:1.8.13 --init --type=node --api-server-endpoint=https://%s", 
 							masterIpAddress));
 			
 				// mark kubelet as ready

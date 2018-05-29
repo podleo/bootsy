@@ -437,26 +437,26 @@ public class K8sServer {
 	
 	protected void deployKubernetesBinaries() {
 		
-		LOG.debug(String.format("deploying kubernetes binaries 1.7.11 "));
+		LOG.debug(String.format("deploying kubernetes binaries 1.8.13 "));
 		
 		Volume bin = new Volume("/usr/bin");
 		Volume opt = new Volume("/opt");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.7.11")
+		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
 			.withVolumes(bin, opt)
 			.withBinds(
 				new Bind("/usr/bin", bin),
 				new Bind("/opt", opt))
 			.withEntrypoint("/bin/bash")
 			.withCmd("./copy.sh")
-			.withName("kube-binaries-1.7.11")
+			.withName("kube-binaries-1.8.13")
 				.exec();
 		
-		LOG.debug(String.format("kube-binaries-1.7.11 container created id: %s", res.getId()));
+		LOG.debug(String.format("kube-binaries-1.8.13 container created id: %s", res.getId()));
 		
 		docker.startContainerCmd(res.getId()).exec();
 		
-		LOG.debug(String.format("kube-binaries-1.7.11 container started id: %s", res.getId()));
+		LOG.debug(String.format("kube-binaries-1.8.13 container started id: %s", res.getId()));
 		
 		try {
 			
@@ -475,7 +475,7 @@ public class K8sServer {
 			
 			docker.removeContainerCmd(res.getId()).exec();
 			
-			LOG.debug(String.format("kube-binaries-1.7.11 container removed id: %s", res.getId()));
+			LOG.debug(String.format("kube-binaries-1.8.13 container removed id: %s", res.getId()));
 			
 		}
 		
