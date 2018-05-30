@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>com.flyover</groupId>
 		<artifactId>bootsy</artifactId>
-		<version>1.7.11</version>
+		<version>1.8.13</version>
 	</parent>
 	<artifactId>bootsy-core</artifactId>
 	<name>bootsy-core</name>
