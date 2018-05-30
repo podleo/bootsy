@@ -265,7 +265,7 @@ public class K8sMaster extends K8sServer {
 		
 		VelocityContext context = new VelocityContext();
 		context.put("ip_address", ctx.getMasterIP());
-		context.put("version", "1.7.11");
+		context.put("version", Version.KUBE_VERSION);
 		context.put("auth_secret_name", UUID.randomUUID().toString());
 		context.put("image", Version.image("bootsy-operator"));
 		
