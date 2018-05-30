@@ -1,13 +1,14 @@
 /**
  * 
  */
-package com.flyover.bootsy;
+package com.flyover.bootsy.core;
 
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.cert.X509Certificate;
@@ -89,7 +90,7 @@ public class SSL {
 
 	}
 
-	public static X509Certificate[] generateSSLCertificate(KeyPair rootPair, X509Certificate rootCert, KeyPair serverPair, 
+	public static X509Certificate[] generateSSLCertificate(PrivateKey rootKey, X509Certificate rootCert, KeyPair serverPair, 
 			String issuer, X500Name subject, GeneralName...alternativeNames) throws Exception {
 
 		Calendar c = Calendar.getInstance();
@@ -120,7 +121,7 @@ public class SSL {
 		builder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(alternativeNames));
 
 		ContentSigner signer = new JcaContentSignerBuilder(
-				"SHA1WithRSAEncryption").build(rootPair.getPrivate());
+				"SHA1WithRSAEncryption").build(rootKey);
 
 		X509Certificate issuedCert = new JcaX509CertificateConverter()
 				.getCertificate(builder.build(signer));
@@ -129,7 +130,7 @@ public class SSL {
 
 	}
 	
-	public static X509Certificate[] generateClientCertificate(KeyPair caKey, X509Certificate caCert, KeyPair clientKey, 
+	public static X509Certificate[] generateClientCertificate(PrivateKey caKey, X509Certificate caCert, KeyPair clientKey, 
 			String issuer, X500Name subject) throws Exception {
 
 		Calendar c = Calendar.getInstance();
@@ -159,7 +160,7 @@ public class SSL {
 						KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth }));
 
 		ContentSigner signer = new JcaContentSignerBuilder(
-				"SHA1WithRSAEncryption").build(caKey.getPrivate());
+				"SHA1WithRSAEncryption").build(caKey);
 
 		X509Certificate issuedCert = new JcaX509CertificateConverter()
 				.getCertificate(builder.build(signer));

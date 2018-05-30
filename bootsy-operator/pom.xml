@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>com.flyover</groupId>
 		<artifactId>bootsy</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>1.7.11</version>
 	</parent>
 	<artifactId>bootsy-operator</artifactId>
 	<name>bootsy-operator</name>
@@ -34,6 +34,11 @@
 					<artifactId>spring-boot-starter-logging</artifactId>
 				</exclusion>
 			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>com.flyover</groupId>
+			<artifactId>bootsy-core</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
