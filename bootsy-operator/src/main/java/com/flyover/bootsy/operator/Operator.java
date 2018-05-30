@@ -9,19 +9,24 @@ import java.io.File;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.MessageDigest;
 import java.security.PrivateKey;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,12 +34,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flyover.bootsy.core.SSL;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
 import com.flyover.bootsy.operator.k8s.KubeNode;
 import com.flyover.bootsy.operator.k8s.KubeNodeController;
 import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
 import com.flyover.bootsy.operator.k8s.SecuritySpec;
+import com.flyover.bootsy.operator.k8s.SecuritySpec.CertSpec;
 import com.flyover.bootsy.operator.provders.Provider;
 import com.flyover.bootsy.operator.ssh.Connection;
 
@@ -288,51 +294,112 @@ public class Operator {
 		
 	}
 	
-	@SuppressWarnings("unchecked")
 	private void installKeysAndCertificates(KubeNode master, KubeNode kn) {
 		
 		try {
 			
-			Map<String, Object> map = (Map<String, Object>) master.getSpec().any().get("security");
-			SecuritySpec security = new ObjectMapper().convertValue(map, SecuritySpec.class);
+			SecuritySpec security = master.getSpec().getSecurity();
 					
 			new Connection(kubeAdapter, kn).raw("mkdir -p /etc/k8s");
 
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
-			write(out, privateKey(security.getCa().getKey()));
-			new Connection(kubeAdapter, kn).put("ca.key", out.toByteArray(), "/etc/k8s/ca.key");
-			out.reset();
 			
-			write(out, security.getCa().getCert().stream().map(this::certificate).toArray());
+			// ca key and certificate
+			PrivateKey caKey = privateKey(security.getCa().getKey());
+			
+			X509Certificate[] caCert = security.getCa().getCert().stream()
+					.map(this::certificate).toArray(X509Certificate[]::new);
+			
+			write(out, caCert);
 			new Connection(kubeAdapter, kn).put("ca.crt", out.toByteArray(), "/etc/k8s/ca.crt");
 			out.reset();
+
+			// server key and certificate
+			KeyPair serverKey = SSL.generateRSAKeyPair();
 			
-			write(out, privateKey(security.getServer().getKey()));
+			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
+			
+			X509Certificate[] serverChain = SSL.generateSSLCertificate(caKey, caCert[0], serverKey, "192.168.253.1", subject,
+					new GeneralName(GeneralName.iPAddress, kn.getSpec().getIpAddress()),
+					new GeneralName(GeneralName.iPAddress, "127.0.0.1"));
+
+			CertSpec serverSpec = new CertSpec();
+			serverSpec.setKey(encode(serverKey));
+			serverSpec.setCert(Arrays.stream(serverChain).map(this::encode).collect(Collectors.toList()));
+			
+			kn.getSpec().getSecurity().setServer(serverSpec);
+			
+			// kubelet client certificate
+			KeyPair kubeletKey = SSL.generateRSAKeyPair();
+
+			subject = new X500Name(String.format("CN=system:node:%s, O=system:nodes", kn.getSpec().getIpAddress()));
+			
+			X509Certificate[] kubeletChain = SSL.generateClientCertificate(
+					caKey, caCert[0], kubeletKey, "192.168.253.1", subject);
+			
+			CertSpec kubeletSpec = new CertSpec();
+			kubeletSpec.setKey(encode(kubeletKey));
+			kubeletSpec.setCert(Arrays.stream(kubeletChain).map(this::encode).collect(Collectors.toList()));
+			
+			kn.getSpec().getSecurity().setKubelet(kubeletSpec);
+			
+			// kube-proxy client certificate
+			KeyPair kubeProxyKey = SSL.generateRSAKeyPair();
+			
+			subject = new X500Name(String.format("CN=system:kube-proxy, O=system:node-proxier"));
+			
+			X509Certificate[] kubeProxyChain = SSL.generateClientCertificate(
+					caKey, caCert[0], kubeProxyKey, "192.168.253.1", subject);
+			
+			CertSpec kubeProxySpec = new CertSpec();
+			kubeProxySpec.setKey(encode(kubeProxyKey));
+			kubeProxySpec.setCert(Arrays.stream(kubeProxyChain).map(this::encode).collect(Collectors.toList()));
+			
+			kn.getSpec().getSecurity().setKubeProxy(kubeProxySpec);
+			
+			// write keys and certificates to the tagrget node
+			
+			write(out, serverKey);
 			new Connection(kubeAdapter, kn).put("server.key", out.toByteArray(), "/etc/k8s/server.key");
 			out.reset();
 			
-			write(out, security.getServer().getCert().stream().map(this::certificate).toArray());
+			write(out, serverChain);
 			new Connection(kubeAdapter, kn).put("server.crt", out.toByteArray(), "/etc/k8s/server.crt");
 			out.reset();
 			
-			write(out, privateKey(security.getKubelet().getKey()));
+			write(out, kubeletKey);
 			new Connection(kubeAdapter, kn).put("kubelet.key", out.toByteArray(), "/etc/k8s/kubelet.key");
 			out.reset();
 			
-			write(out, security.getKubelet().getCert().stream().map(this::certificate).toArray());
+			write(out, kubeletChain);
 			new Connection(kubeAdapter, kn).put("kubelet.crt", out.toByteArray(), "/etc/k8s/kubelet.crt");
 			out.reset();
 			
-			write(out, privateKey(security.getKubeProxy().getKey()));
+			write(out, kubeProxyKey);
 			new Connection(kubeAdapter, kn).put("kube-proxy.key", out.toByteArray(), "/etc/k8s/kube-proxy.key");
 			out.reset();
 			
-			write(out, security.getKubeProxy().getCert().stream().map(this::certificate).toArray());
+			write(out, kubeProxyChain);
 			new Connection(kubeAdapter, kn).put("kube-proxy.crt", out.toByteArray(), "/etc/k8s/kube-proxy.crt");
 			
 		} catch (Exception e) {
-			e.printStackTrace();
 			throw new RuntimeException("failed to write security keys and certificates to host: " + e.getMessage(), e);
+		}
+		
+	}
+	
+	private String encode(KeyPair key) {
+		return Base64.getEncoder().encodeToString(key.getPrivate().getEncoded());
+	}
+	
+	private String encode(X509Certificate cert) {
+		
+		try {
+		
+			return Base64.getEncoder().encodeToString(cert.getEncoded());
+			
+		} catch (CertificateEncodingException e) {
+			throw new RuntimeException("failed to encode certificate", e);
 		}
 		
 	}

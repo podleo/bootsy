@@ -15,6 +15,7 @@
 	<modules>
 		<module>bootsy-cmd</module>
     <module>bootsy-operator</module>
+    <module>bootsy-core</module>
   </modules>
 	<build>
 		<plugins>

@@ -35,6 +35,7 @@ import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.flyover.bootsy.core.Version;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.model.Bind;
@@ -437,26 +438,28 @@ public class K8sServer {
 	
 	protected void deployKubernetesBinaries() {
 		
-		LOG.debug(String.format("deploying kubernetes binaries 1.8.13 "));
+		LOG.debug(String.format("deploying kubernetes binaries %s", Version.KUBE_VERSION));
 		
 		Volume bin = new Volume("/usr/bin");
 		Volume opt = new Volume("/opt");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
+		String name = String.format("kube-binaries-%s", Version.KUBE_VERSION);
+		
+		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withVolumes(bin, opt)
 			.withBinds(
 				new Bind("/usr/bin", bin),
 				new Bind("/opt", opt))
 			.withEntrypoint("/bin/bash")
 			.withCmd("./copy.sh")
-			.withName("kube-binaries-1.8.13")
+			.withName(name)
 				.exec();
 		
-		LOG.debug(String.format("kube-binaries-1.8.13 container created id: %s", res.getId()));
+		LOG.debug(String.format("%s container created id: %s", name, res.getId()));
 		
 		docker.startContainerCmd(res.getId()).exec();
 		
-		LOG.debug(String.format("kube-binaries-1.8.13 container started id: %s", res.getId()));
+		LOG.debug(String.format("%s container started id: %s", name, res.getId()));
 		
 		try {
 			
@@ -475,7 +478,7 @@ public class K8sServer {
 			
 			docker.removeContainerCmd(res.getId()).exec();
 			
-			LOG.debug(String.format("kube-binaries-1.8.13 container removed id: %s", res.getId()));
+			LOG.debug(String.format("%s container removed id: %s", name, res.getId()));
 			
 		}
 		

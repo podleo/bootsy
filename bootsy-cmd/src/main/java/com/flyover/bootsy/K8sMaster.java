@@ -35,6 +35,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.flyover.bootsy.core.SSL;
+import com.flyover.bootsy.core.Version;
 import com.flyover.bootsy.k8s.Generic;
 import com.flyover.bootsy.k8s.GenericItems;
 import com.flyover.bootsy.k8s.Paths;
@@ -68,11 +70,11 @@ public class K8sMaster extends K8sServer {
 		// pull etcd image
 		pullImage("quay.io/coreos/etcd:v2.3.8");
 		// pull kubernetes image
-		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13");
+		pullImage(Version.image("kube-base"));
 		// pull bootsy image
-		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:1.8.13");
+		pullImage(Version.image("bootsy-cmd"));
 		// pull bootsy operator image
-		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-operator:1.8.13");
+		pullImage(Version.image("bootsy-operator"));
 		// initialize security keys and certificates.
 		MasterContext ctx = initializeMasterContext();
 		// install keys and certificates to host
@@ -135,7 +137,7 @@ public class K8sMaster extends K8sServer {
 			
 			X500Name subject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "192.168.253.1"));
 			
-			X509Certificate[] serverChain = SSL.generateSSLCertificate(caKey, caCert, serverKey, "192.168.253.1", subject,
+			X509Certificate[] serverChain = SSL.generateSSLCertificate(caKey.getPrivate(), caCert, serverKey, "192.168.253.1", subject,
 					new GeneralName(GeneralName.iPAddress, masterIP),
 					new GeneralName(GeneralName.iPAddress, "192.168.253.1"),
 					new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
@@ -149,10 +151,10 @@ public class K8sMaster extends K8sServer {
 			// kubelet client certificate
 			KeyPair kubeletKey = SSL.generateRSAKeyPair();
 
-			subject = new X500Name(String.format("CN=kubelet, O=system:nodes"));
+			subject = new X500Name(String.format("CN=system:node:%s, O=system:nodes", masterIP));
 			
 			X509Certificate[] kubeletChain = SSL.generateClientCertificate(
-					caKey, caCert, kubeletKey, "192.168.253.1", subject);
+					caKey.getPrivate(), caCert, kubeletKey, "192.168.253.1", subject);
 			
 			// kube-proxy client certificate
 			KeyPair kubeProxyKey = SSL.generateRSAKeyPair();
@@ -160,7 +162,7 @@ public class K8sMaster extends K8sServer {
 			subject = new X500Name(String.format("CN=system:kube-proxy, O=system:node-proxier"));
 			
 			X509Certificate[] kubeProxyChain = SSL.generateClientCertificate(
-					caKey, caCert, kubeProxyKey, "192.168.253.1", subject);
+					caKey.getPrivate(), caCert, kubeProxyKey, "192.168.253.1", subject);
 			
 			return new MasterContext(masterIP, caKey.getPrivate(), caCert, serverKey.getPrivate(), serverChain, 
 					kubeletKey.getPrivate(), kubeletChain, kubeProxyKey.getPrivate(), kubeProxyChain);
@@ -265,6 +267,7 @@ public class K8sMaster extends K8sServer {
 		context.put("ip_address", ctx.getMasterIP());
 		context.put("version", "1.7.11");
 		context.put("auth_secret_name", UUID.randomUUID().toString());
+		context.put("image", Version.image("bootsy-operator"));
 		
 		try {
 			
@@ -443,7 +446,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
+		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withEntrypoint("kube-scheduler")
 			.withCmd(
@@ -466,7 +469,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
+		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withEntrypoint("kube-controller-manager")
 			.withCmd(
@@ -491,7 +494,7 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13")
+		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withPortBindings(PortBinding.parse("8080:8080"), PortBinding.parse("443:443"))
 			.withEntrypoint("kube-apiserver")
@@ -503,8 +506,8 @@ public class K8sMaster extends K8sServer {
 				"--storage-backend=etcd2",
 				"--allow-privileged=true",
 				"--anonymous-auth=false",
-				"--authorization-mode=RBAC",
-				"--admission-control=ServiceAccount",
+				"--authorization-mode=Node,RBAC",
+				"--admission-control=NodeRestriction,ServiceAccount",
 				"--client-ca-file=/etc/k8s/ca.crt",
 				"--tls-cert-file=/etc/k8s/server.crt",
 				"--tls-private-key-file=/etc/k8s/server.key")

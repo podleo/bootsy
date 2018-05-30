@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.flyover.bootsy.core.Version;
+
 /**
  * @author mramach
  *
@@ -30,9 +32,9 @@ public class K8sNode extends K8sServer {
 		// bootstrap host with ssh credentials
 		bootstrapSsh();
 		// pull kubernetes image
-		pullImage("portr.ctnr.ctl.io/bootsy/kube-base:1.8.13");
+		pullImage(Version.image("kube-base"));
 		// pull bootsy image
-		pullImage("portr.ctnr.ctl.io/bootsy/bootsy-cmd:1.8.13");
+		pullImage(Version.image("bootsy-cmd"));
 		// deploy kubectl
 		deployKubernetesBinaries();
 		// deploy kubeconfig

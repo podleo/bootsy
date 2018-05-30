@@ -203,7 +203,7 @@ items:
       spec:
         containers:
         - name: bootsy-operator
-          image: portr.ctnr.ctl.io/markramach/bootsy-operator:0.0.1-SNAPSHOT
+          image: "$image"
           imagePullPolicy: Always
           args:
           - "--bootsy.k8s.endpoint=https://192.168.253.1"
