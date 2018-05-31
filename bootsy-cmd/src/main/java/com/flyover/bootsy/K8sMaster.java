@@ -15,6 +15,7 @@ import java.security.KeyPair;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -68,7 +69,7 @@ public class K8sMaster extends K8sServer {
 		// bootstrap host with ssh credentials
 		bootstrapSsh();
 		// pull etcd image
-		pullImage("quay.io/coreos/etcd:v2.3.8");
+		pullImage("quay.io/coreos/etcd:v3.3.5");
 		// pull kubernetes image
 		pullImage(Version.image("kube-base"));
 		// pull bootsy image
@@ -80,9 +81,9 @@ public class K8sMaster extends K8sServer {
 		// install keys and certificates to host
 		installKeysAndCertificates(ctx);
 		// start etcd container
-		startEtcd();
+		startEtcd(ctx);
 		// start kube-apiserver
-		startKubeApiServer();
+		startKubeApiServer(ctx);
 		// start kube-controller-manager
 		startKubeControllerManager();
 		// start kube-scheduler
@@ -164,8 +165,23 @@ public class K8sMaster extends K8sServer {
 			X509Certificate[] kubeProxyChain = SSL.generateClientCertificate(
 					caKey.getPrivate(), caCert, kubeProxyKey, "192.168.253.1", subject);
 			
+			// etcd ca
+			KeyPair etcdCaKey = SSL.generateRSAKeyPair();
+			
+			X509Certificate etcdCaCert = SSL.generateV1Certificate(etcdCaKey, String.format("etcd"));
+			
+			// etcd certificate
+			KeyPair etcdServerKey = SSL.generateRSAKeyPair();
+			
+			X500Name etcdSubject = new X500Name(String.format("C=US, ST=WA, L=Seattle, O=bootsy, OU=bootsy, CN=%s", "etcd"));
+			
+			X509Certificate[] etcdServerChain = SSL.generateSSLCertificate(etcdCaKey.getPrivate(), etcdCaCert, etcdServerKey, "etcd", etcdSubject,
+					new GeneralName(GeneralName.iPAddress, masterIP),
+					new GeneralName(GeneralName.iPAddress, "127.0.0.1"));
+			
 			return new MasterContext(masterIP, caKey.getPrivate(), caCert, serverKey.getPrivate(), serverChain, 
-					kubeletKey.getPrivate(), kubeletChain, kubeProxyKey.getPrivate(), kubeProxyChain);
+					kubeletKey.getPrivate(), kubeletChain, kubeProxyKey.getPrivate(), kubeProxyChain, 
+					etcdCaKey.getPrivate(), etcdCaCert, etcdServerKey.getPrivate(), etcdServerChain);
 			
 		} catch (Exception e) {
 			throw new RuntimeException("failed to load security keys and certificates", e);
@@ -191,6 +207,10 @@ public class K8sMaster extends K8sServer {
 			Path kubeletCertPath = dir.resolve("kubelet.crt");
 			Path kubeProxyKeyPath = dir.resolve("kube-proxy.key");
 			Path kubeProxyCertPath = dir.resolve("kube-proxy.crt");
+			Path etcdCaKeyPath = dir.resolve("etcd-ca.key");
+			Path etcdCaCertPath = dir.resolve("etcd-ca.crt");
+			Path etcdServerKeyPath = dir.resolve("etcd-server.key");
+			Path etcdServerCertPath = dir.resolve("etcd-server.crt");
 			
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			
@@ -224,6 +244,23 @@ public class K8sMaster extends K8sServer {
 			
 			SSL.write(out, ctx.getKubeProxyCert());
 			Files.write(kubeProxyCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			out.reset();
+			
+			SSL.write(out, ctx.getEtcdCaKey());
+			Files.write(etcdCaKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			out.reset();
+			
+			SSL.write(out, ctx.getEtcdCaCert());
+			Files.write(etcdCaCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			out.reset();
+			
+			SSL.write(out, ctx.getEtcdServerKey());
+			Files.write(etcdServerKeyPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			out.reset();
+			
+			SSL.write(out, ctx.getEtcdServerCert());
+			Files.write(etcdServerCertPath, out.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			out.reset();
 			
 		} catch (Exception e) {
 			throw new RuntimeException("failed to write security keys and certificates to host", e);
@@ -446,6 +483,10 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
+		Map<String, String> labels = new LinkedHashMap<>();
+		labels.put("bootsy-version", Version.KUBE_VERSION);
+		labels.put("bootsy-component", "kube-apiserver");
+		
 		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withEntrypoint("kube-scheduler")
@@ -453,8 +494,8 @@ public class K8sMaster extends K8sServer {
 				"--address=0.0.0.0",
 				"--master=http://localhost:8080")
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-apiserver")
 			.withName("kube-scheduler")
+			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
 		
@@ -470,6 +511,10 @@ public class K8sMaster extends K8sServer {
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
+		Map<String, String> labels = new LinkedHashMap<>();
+		labels.put("bootsy-version", Version.KUBE_VERSION);
+		labels.put("bootsy-component", "kube-controller-manager");
+		
 		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withEntrypoint("kube-controller-manager")
@@ -479,8 +524,8 @@ public class K8sMaster extends K8sServer {
 				"--root-ca-file=/etc/k8s/ca.crt",
 				"--service-account-private-key-file=/etc/k8s/server.key")
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-apiserver")
 			.withName("kube-controller-manager")
+			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
 		
@@ -492,9 +537,13 @@ public class K8sMaster extends K8sServer {
 		
 	}		
 
-	private void startKubeApiServer() {
+	private void startKubeApiServer(MasterContext ctx) {
 		
 		Volume k8s = new Volume("/etc/k8s");
+		
+		Map<String, String> labels = new LinkedHashMap<>();
+		labels.put("bootsy-version", Version.KUBE_VERSION);
+		labels.put("bootsy-component", "kube-apiserver");
 		
 		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
@@ -504,18 +553,21 @@ public class K8sMaster extends K8sServer {
 				"--bind-address=0.0.0.0",
 				"--secure-port=443",
 				"--service-cluster-ip-range=192.168.253.0/24",
-				"--etcd-servers=http://localhost:4001",
-				"--storage-backend=etcd2",
 				"--allow-privileged=true",
 				"--anonymous-auth=false",
 				"--authorization-mode=Node,RBAC",
 				"--admission-control=NodeRestriction,ServiceAccount",
 				"--client-ca-file=/etc/k8s/ca.crt",
 				"--tls-cert-file=/etc/k8s/server.crt",
-				"--tls-private-key-file=/etc/k8s/server.key")
+				"--tls-private-key-file=/etc/k8s/server.key",
+				String.format("--etcd-servers=https://%s:2379", ctx.getMasterIP()),
+				"--etcd-cafile=/etc/k8s/etcd-ca.crt",
+				"--etcd-certfile=/etc/k8s/etcd-server.crt",
+				"--etcd-keyfile=/etc/k8s/etcd-server.key")
 			.withVolumes(k8s)
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
 			.withName("kube-apiserver")
+			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
 		
@@ -527,16 +579,30 @@ public class K8sMaster extends K8sServer {
 		
 	}
 	
-	private void startEtcd() {
+	private void startEtcd(MasterContext ctx) {
 		
 		Volume etcdData = new Volume("/data01/etcd");
+		Volume certData = new Volume("/etc/k8s");
 		
-		CreateContainerResponse res = docker.createContainerCmd("quay.io/coreos/etcd:v2.3.8")
+		CreateContainerResponse res = docker.createContainerCmd("quay.io/coreos/etcd:v3.3.5")
 			.withNetworkMode("host")
-			.withPortBindings(PortBinding.parse("4001:4001"))
+			.withPortBindings(
+				PortBinding.parse("2379:2379"),
+				PortBinding.parse("2380:2380"))
 			.withVolumes(etcdData)
-			.withBinds(new Bind("/data01/etcd", etcdData, AccessMode.rw))
-			.withCmd("-data-dir=/data01/etcd")
+			.withBinds(
+				new Bind("/data01/etcd", etcdData, AccessMode.rw),
+				new Bind("/etc/k8s", certData, AccessMode.rw))
+			.withCmd(
+				"etcd", 
+				"--data-dir=/data01/etcd",
+				"--cert-file=/etc/k8s/etcd-server.crt",
+				"--key-file=/etc/k8s/etcd-server.key",
+				"--trusted-ca-file=/etc/k8s/etcd-ca.crt",
+				"--ca-file=/etc/k8s/etcd-ca.crt",
+				"--client-cert-auth",
+				String.format("--listen-client-urls=https://%s:2379,https://127.0.0.1:2379", ctx.getMasterIP()),
+				String.format("--advertise-client-urls=https://%s:2379", ctx.getMasterIP()))
 			.withName("etcd")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();

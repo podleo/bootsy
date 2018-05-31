@@ -512,12 +512,18 @@ public class K8sServer {
 		private X509Certificate[] kubeletCert;
 		private PrivateKey kubeProxyKey;
 		private X509Certificate[] kubeProxyCert;
+		private PrivateKey etcdCaKey;
+		private X509Certificate etcdCaCert;
+		private PrivateKey etcdServerKey;
+		private X509Certificate[] etcdServerCert;		
 		
-		public MasterContext(String masterIP, PrivateKey caKey,
-				X509Certificate caCert, PrivateKey serverKey,
-				X509Certificate[] serverCert, PrivateKey kubeletKey,
-				X509Certificate[] kubeletCert, PrivateKey kubeProxyKey,
-				X509Certificate[] kubeProxyCert) {
+		public MasterContext(String masterIP, 
+				PrivateKey caKey, X509Certificate caCert, 
+				PrivateKey serverKey, X509Certificate[] serverCert, 
+				PrivateKey kubeletKey, X509Certificate[] kubeletCert, 
+				PrivateKey kubeProxyKey, X509Certificate[] kubeProxyCert, 
+				PrivateKey etcdCaKey, X509Certificate etcdCaCert, 
+				PrivateKey etcdServerKey, X509Certificate[] etcdServerCert) {
 			this.masterIP = masterIP;
 			this.caKey = caKey;
 			this.caCert = caCert;
@@ -527,6 +533,10 @@ public class K8sServer {
 			this.kubeletCert = kubeletCert;
 			this.kubeProxyKey = kubeProxyKey;
 			this.kubeProxyCert = kubeProxyCert;
+			this.etcdCaKey = etcdCaKey;
+			this.etcdCaCert = etcdCaCert;
+			this.etcdServerKey = etcdServerKey;
+			this.etcdServerCert = etcdServerCert;
 		}
 
 		public String getMasterIP() {
@@ -563,6 +573,22 @@ public class K8sServer {
 
 		public X509Certificate[] getKubeProxyCert() {
 			return kubeProxyCert;
+		}
+
+		public PrivateKey getEtcdCaKey() {
+			return etcdCaKey;
+		}
+
+		public X509Certificate getEtcdCaCert() {
+			return etcdCaCert;
+		}
+
+		public PrivateKey getEtcdServerKey() {
+			return etcdServerKey;
+		}
+
+		public X509Certificate[] getEtcdServerCert() {
+			return etcdServerCert;
 		}
 		
 	}
