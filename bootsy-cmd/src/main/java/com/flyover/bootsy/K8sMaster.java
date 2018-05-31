@@ -6,6 +6,7 @@ package com.flyover.bootsy;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -264,6 +265,7 @@ public class K8sMaster extends K8sServer {
 			
 		} catch (Exception e) {
 			throw new RuntimeException("failed to write security keys and certificates to host", e);
+			
 		}
 		
 	}
