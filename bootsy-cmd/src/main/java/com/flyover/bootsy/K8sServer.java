@@ -10,6 +10,7 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -35,6 +36,8 @@ import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flyover.bootsy.core.ClusterConfig;
 import com.flyover.bootsy.core.Version;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
@@ -180,6 +183,8 @@ public class K8sServer {
 		
 		LOG.debug(String.format("deploying kubelet service "));
 		
+		ClusterConfig config = clusterConfig();
+		
 		VelocityEngine velocityEngine = new VelocityEngine();
 		velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
 		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
@@ -191,6 +196,13 @@ public class K8sServer {
 		context.put("node_labels", labels);
 		context.put("api_server_endpoint", apiServerEndpoint);
 		context.put("ip_address", getIpAddress().getHostAddress());
+		context.put("address", config.getKubelet().getAddress());
+		context.put("allow_privileged", config.getKubelet().isAllowPrivileged());
+		context.put("network_plugin", config.getKubelet().getNetworkPlugin());
+		context.put("tls_private_key_file", config.getKubelet().getTlsPrivateKeyFile());
+		context.put("tls_cert_file", config.getKubelet().getTlsCertFile());
+		context.put("tls_cert_file", config.getKubelet().getTlsCertFile());
+		context.put("kubeconfig", config.getKubelet().getKubeconfig());
 		
 		StringWriter kubeletServiceValue = new StringWriter();
 		
@@ -212,6 +224,21 @@ public class K8sServer {
 		
 	}
 
+	private ClusterConfig clusterConfig() {
+		
+		try {
+			
+			ClusterConfig config = new ObjectMapper().readValue(
+					Paths.get("/etc/k8s/bootsy.config").toFile(), ClusterConfig.class);
+			
+			return config;
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to load bootsy.config", e);
+		}
+		
+	}
+
 	protected void startKubelet() {
 		startService("kubelet.service");			
 	}
@@ -224,6 +251,8 @@ public class K8sServer {
 		
 		LOG.debug(String.format("deploying kube-proxy service "));
 		
+		ClusterConfig config = clusterConfig();
+		
 		VelocityEngine velocityEngine = new VelocityEngine();
 		velocityEngine.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
 		velocityEngine.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
@@ -234,6 +263,9 @@ public class K8sServer {
 		VelocityContext context = new VelocityContext();
 		context.put("api_server_endpoint", apiServerEndpoint);
 		context.put("ip_address", getIpAddress().getHostAddress());
+		context.put("bind_address", config.getKubeProxy().getBindAddress());
+		context.put("cluster_cidr", config.getKubeProxy().getClusterCidr());
+		context.put("kubeconfig", config.getKubeProxy().getKubeconfig());
 		
 		StringWriter kubeletServiceValue = new StringWriter();
 		
@@ -503,6 +535,7 @@ public class K8sServer {
 
 	protected static class MasterContext {
 		
+		private ClusterConfig clusterConfig;
 		private String masterIP;
 		private PrivateKey caKey;
 		private X509Certificate caCert;
@@ -524,6 +557,7 @@ public class K8sServer {
 				PrivateKey kubeProxyKey, X509Certificate[] kubeProxyCert, 
 				PrivateKey etcdCaKey, X509Certificate etcdCaCert, 
 				PrivateKey etcdServerKey, X509Certificate[] etcdServerCert) {
+			this.clusterConfig = new ClusterConfig();
 			this.masterIP = masterIP;
 			this.caKey = caKey;
 			this.caCert = caCert;
@@ -537,6 +571,10 @@ public class K8sServer {
 			this.etcdCaCert = etcdCaCert;
 			this.etcdServerKey = etcdServerKey;
 			this.etcdServerCert = etcdServerCert;
+		}
+
+		public ClusterConfig getClusterConfig() {
+			return clusterConfig;
 		}
 
 		public String getMasterIP() {

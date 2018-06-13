@@ -34,13 +34,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flyover.bootsy.core.ClusterConfig;
 import com.flyover.bootsy.core.SSL;
+import com.flyover.bootsy.core.k8s.KubeNode;
+import com.flyover.bootsy.core.k8s.KubeNodeController;
+import com.flyover.bootsy.core.k8s.KubeNodeProvider;
+import com.flyover.bootsy.core.k8s.SecuritySpec;
+import com.flyover.bootsy.core.k8s.SecuritySpec.CertSpec;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
-import com.flyover.bootsy.operator.k8s.KubeNode;
-import com.flyover.bootsy.operator.k8s.KubeNodeController;
-import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
-import com.flyover.bootsy.operator.k8s.SecuritySpec;
-import com.flyover.bootsy.operator.k8s.SecuritySpec.CertSpec;
 import com.flyover.bootsy.operator.provders.Provider;
 import com.flyover.bootsy.operator.ssh.Connection;
 
@@ -243,6 +245,8 @@ public class Operator {
 			
 			try {
 			
+				// write cluster configuration
+				
 				// write keys and certificates
 				installKeysAndCertificates(master, kn);
 				
@@ -298,6 +302,7 @@ public class Operator {
 		
 		try {
 			
+			ClusterConfig config = kubeAdapter.getKubeCluster("bootsy").getSpec().getConfig();
 			SecuritySpec security = master.getSpec().getSecurity();
 					
 			new Connection(kubeAdapter, kn).raw("mkdir -p /etc/k8s");
@@ -356,9 +361,12 @@ public class Operator {
 			kubeProxySpec.setCert(Arrays.stream(kubeProxyChain).map(this::encode).collect(Collectors.toList()));
 			
 			kn.getSpec().getSecurity().setKubeProxy(kubeProxySpec);
+
+			// write cluster configuration to the target node
+			new Connection(kubeAdapter, kn).put("bootsy.config", 
+					new ObjectMapper().writeValueAsBytes(config), "/etc/k8s/bootsy.config");
 			
-			// write keys and certificates to the tagrget node
-			
+			// write keys and certificates to the target node			
 			write(out, serverKey);
 			new Connection(kubeAdapter, kn).put("server.key", out.toByteArray(), "/etc/k8s/server.key");
 			out.reset();
