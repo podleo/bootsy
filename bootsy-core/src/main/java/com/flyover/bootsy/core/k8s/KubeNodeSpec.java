@@ -1,16 +1,13 @@
 /**
  * 
  */
-package com.flyover.bootsy.operator.k8s;
+package com.flyover.bootsy.core.k8s;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.flyover.bootsy.core.k8s.KubeNodeConnector;
-import com.flyover.bootsy.core.k8s.KubeNodePackageSpec;
-import com.flyover.bootsy.core.k8s.Model;
 
 /**
  * @author mramach

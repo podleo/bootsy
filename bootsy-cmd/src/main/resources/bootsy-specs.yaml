@@ -18,6 +18,7 @@ items:
   - apiGroups:
     - 'bootsy.flyover.com'
     resources:
+    - kubeclusters
     - kubenodes
     - kubenodecontrollers
     - kubenodeproviders
@@ -144,6 +145,19 @@ items:
       plural: kubenodeproviders
       singular: kubenodeproviders
       shortNames: [ knp ]
+- apiVersion: apiextensions.k8s.io/v1beta1
+  kind: CustomResourceDefinition
+  metadata:
+    name: kubeclusters.bootsy.flyover.com
+  spec:
+    scope: Cluster
+    group: bootsy.flyover.com
+    version: v1
+    names:
+      kind: KubeCluster
+      plural: kubeclusters
+      singular: kubeclusters
+      shortNames: [ kc ]
       
 - apiVersion: bootsy.flyover.com/v1
   kind: KubeNode
