@@ -3,8 +3,8 @@
  */
 package com.flyover.bootsy.operator.provders.azure;
 
-import com.flyover.bootsy.operator.k8s.KubeNodeProviderSpec;
-import com.flyover.bootsy.operator.k8s.SecretRef;
+import com.flyover.bootsy.core.k8s.KubeNodeProviderSpec;
+import com.flyover.bootsy.core.k8s.SecretRef;
 
 /**
  * @author mramach

@@ -2,7 +2,7 @@
 Description=kube-proxy
 
 [Service]
-ExecStart=/usr/bin/kube-proxy --bind-address=0.0.0.0 --master=$api_server_endpoint --hostname-override=$ip_address --cluster-cidr=192.168.253.0/24 --kubeconfig=/etc/k8s/kubeconfig.kube-proxy
+ExecStart=/usr/bin/kube-proxy --bind-address=$bind_address --master=$api_server_endpoint --hostname-override=$ip_address --cluster-cidr=$cluster_cidr --kubeconfig=$kubeconfig
 Restart=always
 
 [Install]

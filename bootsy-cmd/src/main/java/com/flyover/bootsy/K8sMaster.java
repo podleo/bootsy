@@ -36,8 +36,13 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.flyover.bootsy.core.ClusterConfig.ApiServer;
+import com.flyover.bootsy.core.ClusterConfig.ControllerManager;
+import com.flyover.bootsy.core.ClusterConfig.EtcdServer;
+import com.flyover.bootsy.core.ClusterConfig.Scheduler;
 import com.flyover.bootsy.core.SSL;
 import com.flyover.bootsy.core.Version;
+import com.flyover.bootsy.core.k8s.KubeCluster;
 import com.flyover.bootsy.k8s.Generic;
 import com.flyover.bootsy.k8s.GenericItems;
 import com.flyover.bootsy.k8s.Paths;
@@ -85,11 +90,13 @@ public class K8sMaster extends K8sServer {
 		// start kube-apiserver
 		startKubeApiServer(ctx);
 		// start kube-controller-manager
-		startKubeControllerManager();
+		startKubeControllerManager(ctx);
 		// start kube-scheduler
-		startKubeScheduler();
+		startKubeScheduler(ctx);
 		// wait for api to become available
 		waitForApiServer();
+		// write cluster configuration to master
+		writeClusterConfiguration(ctx);
 		// deploy weave components
 		deployWeaveComponents();
 		// deploy bootsy components
@@ -268,6 +275,27 @@ public class K8sMaster extends K8sServer {
 		
 	}
 	
+	private void writeClusterConfiguration(MasterContext ctx) {
+		
+		try {
+		
+			Path dir = java.nio.file.Paths.get("/etc/k8s");
+			
+			if(!dir.toFile().exists()) {
+				Files.createDirectories(dir);
+			}
+			
+			Path caKeyPath = dir.resolve("bootsy.config");
+			
+			Files.write(caKeyPath, new ObjectMapper().writeValueAsBytes(
+				ctx.getClusterConfig()), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to write bootys cluster configuration to host", e);
+		}
+		
+	}
+	
 	private void deployWeaveComponents() {
 		
 		LOG.info("creating weave networking components");
@@ -328,11 +356,21 @@ public class K8sMaster extends K8sServer {
 		
 		template.merge(context, value);
 		
-		ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+		ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
+		
+		// create new cluster spec for congiuration.
+		KubeCluster c = new KubeCluster();
+		c.getMetadata().setName("bootsy");
+		c.getSpec().setConfig(ctx.getClusterConfig());
+		
+		Generic gc = new ObjectMapper().convertValue(c, Generic.class);
 		
 		try {
 			
-			GenericItems items = mapper.readValue(value.toString().getBytes(), GenericItems.class);
+			GenericItems items = yaml.readValue(value.toString().getBytes(), GenericItems.class);
+			
+			// add cluster spec for configuration 
+			items.getItems().add(gc);
 			
 			items.getItems().stream().forEach(this::createGenericKubeComponent);
 			
@@ -479,7 +517,9 @@ public class K8sMaster extends K8sServer {
 		
 	}
 
-	private void startKubeScheduler() {
+	private void startKubeScheduler(MasterContext ctx) {
+		
+		Scheduler config = ctx.getClusterConfig().getScheduler();
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
@@ -491,8 +531,8 @@ public class K8sMaster extends K8sServer {
 			.withNetworkMode("host")
 			.withEntrypoint("kube-scheduler")
 			.withCmd(
-				"--address=0.0.0.0",
-				"--master=http://localhost:8080")
+				String.format("--address=%s", config.getAddress()),
+				String.format("--master=%s", config.getMaster()))
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
 			.withName("kube-scheduler")
 			.withLabels(labels)
@@ -507,7 +547,9 @@ public class K8sMaster extends K8sServer {
 		
 	}
 	
-	private void startKubeControllerManager() {
+	private void startKubeControllerManager(MasterContext ctx) {
+		
+		ControllerManager config = ctx.getClusterConfig().getControllerManager();
 		
 		Volume k8s = new Volume("/etc/k8s");
 		
@@ -519,10 +561,10 @@ public class K8sMaster extends K8sServer {
 			.withNetworkMode("host")
 			.withEntrypoint("kube-controller-manager")
 			.withCmd(
-				"--address=0.0.0.0",
-				"--master=http://localhost:8080",
-				"--root-ca-file=/etc/k8s/ca.crt",
-				"--service-account-private-key-file=/etc/k8s/server.key")
+				String.format("--address=%s", config.getAddress()),
+				String.format("--master=%s", config.getMaster()),
+				String.format("--root-ca-file=%s", config.getRootCaFile()),
+				String.format("--service-account-private-key-file=%s", config.getServiceAccountPrivateKeyFile()))
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
 			.withName("kube-controller-manager")
 			.withLabels(labels)
@@ -545,25 +587,28 @@ public class K8sMaster extends K8sServer {
 		labels.put("bootsy-version", Version.KUBE_VERSION);
 		labels.put("bootsy-component", "kube-apiserver");
 		
+		ApiServer config = ctx.getClusterConfig().getApiserver();
+		config.setEtcdServers(String.format("https://%s:2379", ctx.getMasterIP()));
+
 		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withPortBindings(PortBinding.parse("8080:8080"), PortBinding.parse("443:443"))
 			.withEntrypoint("kube-apiserver")
 			.withCmd(
-				"--bind-address=0.0.0.0",
-				"--secure-port=443",
-				"--service-cluster-ip-range=192.168.253.0/24",
-				"--allow-privileged=true",
-				"--anonymous-auth=false",
-				"--authorization-mode=Node,RBAC",
-				"--admission-control=NodeRestriction,ServiceAccount",
-				"--client-ca-file=/etc/k8s/ca.crt",
-				"--tls-cert-file=/etc/k8s/server.crt",
-				"--tls-private-key-file=/etc/k8s/server.key",
-				String.format("--etcd-servers=https://%s:2379", ctx.getMasterIP()),
-				"--etcd-cafile=/etc/k8s/etcd-ca.crt",
-				"--etcd-certfile=/etc/k8s/etcd-server.crt",
-				"--etcd-keyfile=/etc/k8s/etcd-server.key")
+				String.format("--bind-address=%s", config.getBindAddress()),
+				String.format("--secure-port=%s", config.getSecurePort()),
+				String.format("--service-cluster-ip-range=%s", config.getServiceClusterIpRange()),
+				String.format("--allow-privileged=%s", config.isAllowPrivileged()),
+				String.format("--anonymous-auth=%s", config.isAnonymousAuth()),
+				String.format("--authorization-mode=%s", config.getAuthorizationMode()),
+				String.format("--admission-control=%s", config.getAdmissionControl()),
+				String.format("--client-ca-file=%s", config.getClientCaFile()),
+				String.format("--tls-cert-file=%s", config.getTlsCertFile()),
+				String.format("--tls-private-key-file=%s", config.getTlsPrivateKeyFile()),
+				String.format("--etcd-servers=%s", config.getEtcdServers()),
+				String.format("--etcd-cafile=%s", config.getEtcdCafile()),
+				String.format("--etcd-certfile=%s", config.getEtcdCertfile()),
+				String.format("--etcd-keyfile=%s", config.getEtcdKeyfile()))
 			.withVolumes(k8s)
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
 			.withName("kube-apiserver")
@@ -580,6 +625,10 @@ public class K8sMaster extends K8sServer {
 	}
 	
 	private void startEtcd(MasterContext ctx) {
+
+		EtcdServer config = ctx.getClusterConfig().getEtcdserver();
+		config.setListenClientUrls(String.format("https://%s:2379,https://127.0.0.1:2379", ctx.getMasterIP()));
+		config.setAdvertiseClientUrls(String.format("https://%s:2379", ctx.getMasterIP()));
 		
 		Volume etcdData = new Volume("/data01/etcd");
 		Volume certData = new Volume("/etc/k8s");
@@ -595,14 +644,14 @@ public class K8sMaster extends K8sServer {
 				new Bind("/etc/k8s", certData, AccessMode.rw))
 			.withCmd(
 				"etcd", 
-				"--data-dir=/data01/etcd",
-				"--cert-file=/etc/k8s/etcd-server.crt",
-				"--key-file=/etc/k8s/etcd-server.key",
-				"--trusted-ca-file=/etc/k8s/etcd-ca.crt",
-				"--ca-file=/etc/k8s/etcd-ca.crt",
-				"--client-cert-auth",
-				String.format("--listen-client-urls=https://%s:2379,https://127.0.0.1:2379", ctx.getMasterIP()),
-				String.format("--advertise-client-urls=https://%s:2379", ctx.getMasterIP()))
+				String.format("--data-dir=%s", config.getDataDir()),
+				String.format("--cert-file=%s", config.getCertFile()),
+				String.format("--key-file=%s", config.getKeyFile()),
+				String.format("--trusted-ca-file=%s", config.getTrustedCaFile()),
+				String.format("--ca-file=%s", config.getCaFile()),
+				config.isClientCertAuth() ? "--client-cert-auth" : "",
+				String.format("--listen-client-urls=%s", config.getListenClientUrls()),
+				String.format("--advertise-client-urls=%s", config.getAdvertiseClientUrls()))
 			.withName("etcd")
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();

@@ -3,8 +3,8 @@
  */
 package com.flyover.bootsy.operator.provders;
 
-import com.flyover.bootsy.operator.k8s.KubeNode;
-import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
+import com.flyover.bootsy.core.k8s.KubeNode;
+import com.flyover.bootsy.core.k8s.KubeNodeProvider;
 
 /**
  * @author mramach

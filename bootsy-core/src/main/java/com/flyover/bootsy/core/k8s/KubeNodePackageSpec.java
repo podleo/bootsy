@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.flyover.bootsy.operator.k8s;
+package com.flyover.bootsy.core.k8s;
 
 import java.util.LinkedList;
 import java.util.List;
