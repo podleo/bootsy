@@ -37,6 +37,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flyover.bootsy.core.ClusterConfig;
 import com.flyover.bootsy.core.SSL;
+import com.flyover.bootsy.core.Version;
 import com.flyover.bootsy.core.k8s.KubeNode;
 import com.flyover.bootsy.core.k8s.KubeNodeController;
 import com.flyover.bootsy.core.k8s.KubeNodeProvider;
@@ -250,11 +251,12 @@ public class Operator {
 				// write keys and certificates
 				installKeysAndCertificates(master, kn);
 				
-				new Connection(kubeAdapter, kn).raw("sudo docker pull portr.ctnr.ctl.io/bootsy/bootsy-cmd:latest");
+				new Connection(kubeAdapter, kn).raw(String.format(
+						"sudo docker pull %s", Version.image("bootsy-cmd")));
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"portr.ctnr.ctl.io/bootsy/bootsy-cmd:latest --init --type=node --api-server-endpoint=https://%s", 
-							masterIpAddress));
+						"%s --init --type=node --api-server-endpoint=https://%s", 
+							Version.image("bootsy-cmd"), masterIpAddress));
 			
 				// mark kubelet as ready
 				kn.getSpec().setState("configured");
