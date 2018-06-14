@@ -31,13 +31,13 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flyover.bootsy.core.k8s.KubeMeta;
+import com.flyover.bootsy.core.k8s.KubeNode;
+import com.flyover.bootsy.core.k8s.KubeNodeConnector;
+import com.flyover.bootsy.core.k8s.KubeNodeProvider;
+import com.flyover.bootsy.core.k8s.Secret;
+import com.flyover.bootsy.core.k8s.SecretRef;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
-import com.flyover.bootsy.operator.k8s.KubeMeta;
-import com.flyover.bootsy.operator.k8s.KubeNode;
-import com.flyover.bootsy.operator.k8s.KubeNodeConnector;
-import com.flyover.bootsy.operator.k8s.KubeNodeProvider;
-import com.flyover.bootsy.operator.k8s.Secret;
-import com.flyover.bootsy.operator.k8s.SecretRef;
 import com.flyover.bootsy.operator.provders.AbstractProvider;
 
 /**

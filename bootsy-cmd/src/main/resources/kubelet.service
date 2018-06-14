@@ -2,7 +2,7 @@
 Description=kubelet
 
 [Service]
-ExecStart=/usr/bin/kubelet --address=0.0.0.0 --api-servers=$api_server_endpoint --hostname-override=$ip_address --allow-privileged=true --network-plugin=cni --node-labels=$node_labels --tls-private-key-file=/etc/k8s/server.key --tls-cert-file=/etc/k8s/server.crt --kubeconfig=/etc/k8s/kubeconfig.kubelet
+ExecStart=/usr/bin/kubelet --address=$address --api-servers=$api_server_endpoint --hostname-override=$ip_address --allow-privileged=$allow_privileged --network-plugin=$network_plugin --node-labels=$node_labels --tls-private-key-file=$tls_private_key_file --tls-cert-file=$tls_cert_file --kubeconfig=$kubeconfig
 Restart=always
 
 [Install]

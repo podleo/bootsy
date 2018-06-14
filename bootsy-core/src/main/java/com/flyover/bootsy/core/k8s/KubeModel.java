@@ -1,21 +1,18 @@
 /**
  * 
  */
-package com.flyover.bootsy.operator.k8s;
-
-import java.util.LinkedList;
-import java.util.List;
+package com.flyover.bootsy.core.k8s;
 
 /**
  * @author mramach
  *
  */
-public class KubeItemsModel<T> extends Model {
+public class KubeModel<T> extends Model {
 
 	private String kind;
 	private String apiVersion;
 	private KubeMeta metadata;
-	private List<T> items = new LinkedList<T>();
+	private T spec;
 
 	public String getKind() {
 		return kind;
@@ -40,13 +37,13 @@ public class KubeItemsModel<T> extends Model {
 	public void setMetadata(KubeMeta metadata) {
 		this.metadata = metadata;
 	}
-	
-	public List<T> getItems() {
-		return items;
+
+	public T getSpec() {
+		return spec;
 	}
 
-	public void setItems(List<T> items) {
-		this.items = items;
+	public void setSpec(T spec) {
+		this.spec = spec;
 	}
 
 }

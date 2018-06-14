@@ -33,6 +33,13 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.flyover.bootsy.core.k8s.KubeCluster;
+import com.flyover.bootsy.core.k8s.KubeNode;
+import com.flyover.bootsy.core.k8s.KubeNodeControllerList;
+import com.flyover.bootsy.core.k8s.KubeNodeList;
+import com.flyover.bootsy.core.k8s.KubeNodeProvider;
+import com.flyover.bootsy.core.k8s.Secret;
+
 /**
  * @author mramach
  *
@@ -92,6 +99,15 @@ public class KubeAdapter {
                 			.collect(Collectors.joining(",")));
         
 		return restTemplate.getForObject(builder.build().toUri(), KubeNodeList.class);
+		
+	}
+	
+	public KubeCluster getKubeCluster(String name) {
+		
+		UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(String.format("%s/apis/bootsy.flyover.com/v1/kubeclusters/%s", endpoint, name));
+        
+		return restTemplate.getForObject(builder.build().toUri(), KubeCluster.class);
 		
 	}
 

@@ -26,10 +26,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
+import com.flyover.bootsy.core.k8s.KubeNode;
+import com.flyover.bootsy.core.k8s.Secret;
+import com.flyover.bootsy.core.k8s.SecretRef;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
-import com.flyover.bootsy.operator.k8s.KubeNode;
-import com.flyover.bootsy.operator.k8s.Secret;
-import com.flyover.bootsy.operator.k8s.SecretRef;
 
 /**
  * @author mramach
