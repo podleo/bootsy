@@ -54,10 +54,39 @@ public class K8sNode extends K8sServer {
 
 	}
 	
+	public void update(String apiServerEndpoint) {
+		
+		// verify docker is present on the host.
+		verifyDockerRunning();
+		// load master context
+		MasterContext ctx = loadMasterContext(apiServerEndpoint);
+		// deploy kubeconfig
+		deployKubeletKubeconfig(ctx.getClusterConfig().getControllerManager().getMaster());
+		// deploy kubelet
+		deployKubelet(ctx.getClusterConfig().getControllerManager().getMaster(), "master=true");
+		// deploy kubeconfig
+		deployKubeProxyKubeconfig(ctx.getClusterConfig().getControllerManager().getMaster());
+		// deploy kube-proxy
+		deployKubeProxy(ctx.getClusterConfig().getControllerManager().getMaster());
+		// start kubelet
+		startKubelet();
+		// start kube-proxy
+		startKubeProxy();
+
+	}
+	
 	public void destroy() {
 		
 		stopKubelet();
 		stopKubeProxy();
+		
+	}
+	
+	private MasterContext loadMasterContext(String apiServerEndpoint) {
+		
+		URI uri = UriComponentsBuilder.fromHttpUrl(apiServerEndpoint).build().toUri();
+		
+		return new MasterContext(uri.getHost(), clusterConfig());
 		
 	}
 	
