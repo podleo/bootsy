@@ -16,8 +16,10 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import net.schmizz.sshj.SSHClient;
@@ -68,40 +70,52 @@ public class K8sServer {
 		
 	}
 
-	protected void removeContainer(String name) {
+	protected void removeContainer(String key, String value) {
 		
-		Optional<Container> optional = findContainer(name);
+		List<Container> containers = findContainers(key, value);
 		
-		if(optional.isPresent()) {
+		containers.stream().forEach(c -> {
 			
-			LOG.debug(String.format("%s container found", name));
+			LOG.debug(String.format("%s container found", Arrays.toString(c.getNames())));
 			
-			Container target = optional.get();
-			
-			if(docker.inspectContainerCmd(target.getId()).exec().getState().getRunning()) {
-				docker.stopContainerCmd(target.getId()).exec();
+			if(docker.inspectContainerCmd(c.getId()).exec().getState().getRunning()) {
+				docker.stopContainerCmd(c.getId()).exec();
 			}
 			
-			LOG.debug(String.format("%s container stopped", name));
+			LOG.debug(String.format("%s container stopped", Arrays.toString(c.getNames())));
 			
-			docker.removeContainerCmd(target.getId()).exec();
+			docker.removeContainerCmd(c.getId()).exec();
 			
-			LOG.debug(String.format("%s container removed", name));
+			LOG.debug(String.format("%s container removed", Arrays.toString(c.getNames())));
 			
-		} else {
-			
-			LOG.debug(String.format("%s container not found", name));
-			
-		}
-		
+		});
 		
 	}
-
-	private Optional<Container> findContainer(String name) {
+	
+	protected void stopContainers(String key, String value) {
+		
+		List<Container> containers = findContainers(key, value);
+		
+		containers.stream().forEach(c -> {
+			
+			LOG.debug(String.format("%s container found", Arrays.toString(c.getNames())));
+			
+			if(docker.inspectContainerCmd(c.getId()).exec().getState().getRunning()) {
+				docker.stopContainerCmd(c.getId()).exec();
+			}
+			
+			LOG.debug(String.format("%s container stopped", Arrays.toString(c.getNames())));
+			
+		});
+		
+	}
+	
+	private List<Container> findContainers(String key, String value) {
 		
 		return docker.listContainersCmd().exec().stream()
-			.filter(c -> Arrays.asList(c.getNames()).contains(String.format("/%s", name)))
-				.findFirst();
+			.filter(c -> c.getLabels().containsKey(key))
+			.filter(c -> c.getLabels().get(key).equals(value))
+				.collect(Collectors.toList());
 		
 	}
 
@@ -224,7 +238,7 @@ public class K8sServer {
 		
 	}
 
-	private ClusterConfig clusterConfig() {
+	protected ClusterConfig clusterConfig() {
 		
 		try {
 			
@@ -571,6 +585,11 @@ public class K8sServer {
 			this.etcdCaCert = etcdCaCert;
 			this.etcdServerKey = etcdServerKey;
 			this.etcdServerCert = etcdServerCert;
+		}
+		
+		public MasterContext(String masterIP, ClusterConfig clusterConfig) {
+			this.clusterConfig = clusterConfig;
+			this.masterIP = masterIP;
 		}
 
 		public ClusterConfig getClusterConfig() {

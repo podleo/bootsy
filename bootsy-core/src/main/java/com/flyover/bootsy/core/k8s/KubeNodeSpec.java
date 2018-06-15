@@ -23,6 +23,7 @@ public class KubeNodeSpec extends Model {
 	private String state = "docker_install";
 	private Map<String, Object> instanceInfo = new LinkedHashMap<>();
 	private String checksum = "";
+	private String configurationChecksum = "";
 	private KubeNodePackageSpec packages = new KubeNodePackageSpec();
 	private SecuritySpec security = new SecuritySpec();
 
@@ -88,6 +89,14 @@ public class KubeNodeSpec extends Model {
 
 	public void setChecksum(String checksum) {
 		this.checksum = checksum;
+	}
+
+	public String getConfigurationChecksum() {
+		return configurationChecksum;
+	}
+
+	public void setConfigurationChecksum(String configurationChecksum) {
+		this.configurationChecksum = configurationChecksum;
 	}
 
 	public SecuritySpec getSecurity() {

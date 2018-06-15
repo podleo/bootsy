@@ -260,6 +260,7 @@ public class Operator {
 			
 				// mark kubelet as ready
 				kn.getSpec().setState("configured");
+				kn.getSpec().setConfigurationChecksum(checksum(kubeAdapter.getKubeCluster("bootsy")));
 				// update the spec
 				kn = kubeAdapter.updateKubeNode(kn);
 				
@@ -267,6 +268,66 @@ public class Operator {
 				LOG.error("failed during kubelet installation {}", e.getMessage());
 				// stop node actions
 				return ;
+			}
+			
+		}
+		
+		// check to see if the kubelet has been initialized on the node.
+		if("reconfigure".equals(kn.getSpec().getState())) {
+			
+			LOG.debug("reconfiguring kubelet for KubeNode {}", kn.getMetadata().getName());
+			
+			// fetch master node ip address
+			KubeNode master = kubeAdapter.getKubeNodes(Collections.singletonMap("type", "master"))
+				.getItems().stream().findFirst().orElse(null);
+			
+			if(master == null) {
+				LOG.error("failed during kubelet installation, unable to determine kubernetes master node.");
+				// stop node actions
+				return ;
+			}
+			
+			String masterIpAddress = master.getSpec().getIpAddress();
+			
+			try {
+				
+				// write keys and certificates
+				installKeysAndCertificates(master, kn);
+				
+				new Connection(kubeAdapter, kn).raw(String.format(
+						"sudo docker pull %s", Version.image("bootsy-cmd")));
+				new Connection(kubeAdapter, kn).raw(String.format(
+						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
+						"%s --reconfigure --type=node --api-server-endpoint=https://%s", 
+							Version.image("bootsy-cmd"), masterIpAddress));
+			
+				// mark kubelet as ready
+				kn.getSpec().setState("configured");
+				kn.getSpec().setConfigurationChecksum(checksum(kubeAdapter.getKubeCluster("bootsy")));
+				// update the spec
+				kn = kubeAdapter.updateKubeNode(kn);
+				
+			} catch (Exception e) {
+				LOG.error("failed during kubelet reconfiguration {}", e.getMessage());
+				// stop node actions
+				return ;
+			}
+			
+		}
+
+		// if packages are not installed
+		if("configured".equals(kn.getSpec().getState())) {
+
+			String checksum = kn.getSpec().getConfigurationChecksum();
+			String systemChecksum = checksum(kubeAdapter.getKubeCluster("bootsy"));
+			
+			if(!systemChecksum.equals(checksum)) {	
+				
+				// mark kubelet as needing reconfiguration
+				kn.getSpec().setState("reconfigure");
+				// update the spec
+				kn = kubeAdapter.updateKubeNode(kn);
+				
 			}
 			
 		}
@@ -474,12 +535,12 @@ public class Operator {
 		
 	}
 	
-	private String checksum(List<String> values) {
+	private String checksum(Object o) {
 		
 		try {
 			
 			MessageDigest md = MessageDigest.getInstance("MD5");
-			values.forEach(n -> md.update(n.getBytes()));
+			md.update(new ObjectMapper().writeValueAsBytes(o));
 			String checksum = Base64.getUrlEncoder().encodeToString(md.digest());
 			
 			return checksum;
