@@ -101,6 +101,8 @@ public class K8sMaster extends K8sServer {
 		deployWeaveComponents();
 		// deploy bootsy components
 		deployBootsyComponents(ctx);
+		// write cluster configuration spec
+		writeKubeClusterConfiguration(ctx);
 		// deploy kubectl
 		deployKubernetesBinaries();
 		// deploy kubeconfig
@@ -118,14 +120,61 @@ public class K8sMaster extends K8sServer {
 
 	}
 	
+	public void update() {
+		
+		// verify docker is present on the host.
+		verifyDockerRunning();
+		// pull etcd image
+		pullImage("quay.io/coreos/etcd:v3.3.5");
+		// pull kubernetes image
+		pullImage(Version.image("kube-base"));
+		// pull bootsy image
+		pullImage(Version.image("bootsy-cmd"));
+		// pull bootsy operator image
+		pullImage(Version.image("bootsy-operator"));
+		// load master context
+		MasterContext ctx = loadMasterContext();
+		// stop services
+		stopContainers("bootsy-component", "kube-apiserver");
+		stopContainers("bootsy-component", "kube-controller-manager");
+		stopContainers("bootsy-component", "kube-scheduler");
+		// start reconfigured services
+		startKubeApiServer(ctx);
+		startKubeControllerManager(ctx);
+		startKubeScheduler(ctx);
+		// wait for api to become available
+		waitForApiServer();
+		// deploy kubeconfig
+		deployKubeletKubeconfig(ctx.getClusterConfig().getControllerManager().getMaster());
+		// deploy kubelet
+		deployKubelet(ctx.getClusterConfig().getControllerManager().getMaster(), "master=true");
+		// deploy kubeconfig
+		deployKubeProxyKubeconfig(ctx.getClusterConfig().getControllerManager().getMaster());
+		// deploy kube-proxy
+		deployKubeProxy(ctx.getClusterConfig().getControllerManager().getMaster());
+		// start kubelet
+		startKubelet();
+		// start kube-proxy
+		startKubeProxy();
+		// update kube cluster with new configuration
+		writeKubeClusterConfiguration(ctx);
+
+	}
+	
 	public void destroy() {
 		
 		stopKubelet();
 		stopKubeProxy();
-		removeContainer("kube-scheduler");
-		removeContainer("kube-controller-manager");
-		removeContainer("kube-apiserver");
-		removeContainer("etcd");
+		removeContainer("bootsy-component", "kube-scheduler");
+		removeContainer("bootsy-component", "kube-controller-manager");
+		removeContainer("bootsy-component", "kube-apiserver");
+		removeContainer("bootsy-component", "etcd");
+		
+	}
+	
+	private MasterContext loadMasterContext() {
+		
+		return new MasterContext(getIpAddress().getHostAddress(), clusterConfig());
 		
 	}
 	
@@ -192,6 +241,25 @@ public class K8sMaster extends K8sServer {
 			
 		} catch (Exception e) {
 			throw new RuntimeException("failed to load security keys and certificates", e);
+		}
+		
+	}
+	
+	private void writeKubeClusterConfiguration(MasterContext ctx) {
+		
+		// create new cluster spec for configuration.
+		KubeCluster c = new KubeCluster();
+		c.getMetadata().setName("bootsy");
+		c.getSpec().setConfig(ctx.getClusterConfig());
+		
+		Generic gc = new ObjectMapper().convertValue(c, Generic.class);
+		
+		try {
+			
+			createGenericKubeComponent(gc);
+			
+		} catch (Exception e) {
+			LOG.error("failed to read bootsy components from yaml.", e);
 		}
 		
 	}
@@ -287,7 +355,7 @@ public class K8sMaster extends K8sServer {
 			
 			Path caKeyPath = dir.resolve("bootsy.config");
 			
-			Files.write(caKeyPath, new ObjectMapper().writeValueAsBytes(
+			Files.write(caKeyPath, new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsBytes(
 				ctx.getClusterConfig()), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 			
 		} catch (Exception e) {
@@ -358,19 +426,9 @@ public class K8sMaster extends K8sServer {
 		
 		ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
 		
-		// create new cluster spec for congiuration.
-		KubeCluster c = new KubeCluster();
-		c.getMetadata().setName("bootsy");
-		c.getSpec().setConfig(ctx.getClusterConfig());
-		
-		Generic gc = new ObjectMapper().convertValue(c, Generic.class);
-		
 		try {
 			
 			GenericItems items = yaml.readValue(value.toString().getBytes(), GenericItems.class);
-			
-			// add cluster spec for configuration 
-			items.getItems().add(gc);
 			
 			items.getItems().stream().forEach(this::createGenericKubeComponent);
 			
@@ -462,13 +520,21 @@ public class K8sMaster extends K8sServer {
 					comp.getApiVersion(), comp.getKind(), comp.getMetadata().getNamespace(), comp.getMetadata().getName());
 				
 				try {
-				
-					new RestTemplate().put(uri, comp);
+					
+					URI updateUri = UriComponentsBuilder.fromUri(uri).path("/").path(comp.getMetadata().getName()).build().toUri();
+					Generic existing = new RestTemplate().getForObject(updateUri, Generic.class);
+					existing.setSpec(comp.getSpec());
+					
+					new RestTemplate().put(updateUri, existing);
+					
+					LOG.info("the component with apiVersion {} kind {} namespace {} and name {} has been updated",
+							comp.getApiVersion(), comp.getKind(), comp.getMetadata().getNamespace(), comp.getMetadata().getName());
 					
 				} catch (HttpClientErrorException e1) {
 					
-					LOG.info("the component with apiVersion {} kind {} namespace {} and name {} could not be updated",
-						comp.getApiVersion(), comp.getKind(), comp.getMetadata().getNamespace(), comp.getMetadata().getName());
+					LOG.info("the component with apiVersion {} kind {} namespace {} and name {} could not be updated {} {}",
+						comp.getApiVersion(), comp.getKind(), comp.getMetadata().getNamespace(), comp.getMetadata().getName(), 
+							e1.getMessage(), e1.getResponseBodyAsString());
 					
 				}
 				
@@ -534,7 +600,7 @@ public class K8sMaster extends K8sServer {
 				String.format("--address=%s", config.getAddress()),
 				String.format("--master=%s", config.getMaster()))
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-scheduler")
+			.withName(String.format("kube-scheduler_%s", UUID.randomUUID().toString()))
 			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -566,7 +632,7 @@ public class K8sMaster extends K8sServer {
 				String.format("--root-ca-file=%s", config.getRootCaFile()),
 				String.format("--service-account-private-key-file=%s", config.getServiceAccountPrivateKeyFile()))
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-controller-manager")
+			.withName(String.format("kube-controller-manager_%s", UUID.randomUUID().toString()))
 			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -578,7 +644,7 @@ public class K8sMaster extends K8sServer {
 		LOG.debug(String.format("kube-controller-manager container started id: %s", res.getId()));
 		
 	}		
-
+	
 	private void startKubeApiServer(MasterContext ctx) {
 		
 		Volume k8s = new Volume("/etc/k8s");
@@ -611,7 +677,7 @@ public class K8sMaster extends K8sServer {
 				String.format("--etcd-keyfile=%s", config.getEtcdKeyfile()))
 			.withVolumes(k8s)
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
-			.withName("kube-apiserver")
+			.withName(String.format("kube-apiserver_%s", UUID.randomUUID().toString()))
 			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
@@ -633,6 +699,10 @@ public class K8sMaster extends K8sServer {
 		Volume etcdData = new Volume("/data01/etcd");
 		Volume certData = new Volume("/etc/k8s");
 		
+		Map<String, String> labels = new LinkedHashMap<>();
+		labels.put("bootsy-version", Version.KUBE_VERSION);
+		labels.put("bootsy-component", "etcd");
+		
 		CreateContainerResponse res = docker.createContainerCmd("quay.io/coreos/etcd:v3.3.5")
 			.withNetworkMode("host")
 			.withPortBindings(
@@ -652,7 +722,8 @@ public class K8sMaster extends K8sServer {
 				config.isClientCertAuth() ? "--client-cert-auth" : "",
 				String.format("--listen-client-urls=%s", config.getListenClientUrls()),
 				String.format("--advertise-client-urls=%s", config.getAdvertiseClientUrls()))
-			.withName("etcd")
+			.withName(String.format("etcd_%s", UUID.randomUUID().toString()))
+			.withLabels(labels)
 			.withRestartPolicy(RestartPolicy.alwaysRestart())
 				.exec();
 		
