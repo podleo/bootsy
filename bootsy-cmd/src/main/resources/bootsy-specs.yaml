@@ -160,6 +160,25 @@ items:
       shortNames: [ kc ]
       
 - apiVersion: bootsy.flyover.com/v1
+  kind: KubeNodeProvider
+  metadata:
+    name: bootstrap
+    namespace: ""
+  spec:
+    type: bootstrap  
+    
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: "$auth_secret_name"
+    namespace: bootsy
+  type: Opaque
+  data:
+    username: cm9vdA==
+    publicKey: "$publicKey"
+    privateKey: "$privateKey"    
+      
+- apiVersion: bootsy.flyover.com/v1
   kind: KubeNode
   metadata:
     generateName: node-
@@ -167,6 +186,7 @@ items:
       type: master
   spec:
     type: master
+    state: configured
     provider: bootstrap
     ipAddress: "$ip_address"
     version: "$version"

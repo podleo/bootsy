@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
 import com.flyover.bootsy.operator.provders.Provider;
 import com.flyover.bootsy.operator.provders.azure.AzureProvider;
+import com.flyover.bootsy.operator.provders.bootstrap.BootstrapProvider;
 import com.flyover.bootsy.operator.provders.centurylink.CenturyLinkProvider;
 
 /**
@@ -44,6 +45,11 @@ public class Application {
 	@Bean
 	public Provider azure() {
 		return new AzureProvider();
+	}
+	
+	@Bean
+	public Provider bootstrap() {
+		return new BootstrapProvider();
 	}
 	
 	@Bean
