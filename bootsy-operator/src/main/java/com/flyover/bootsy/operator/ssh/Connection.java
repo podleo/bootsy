@@ -126,7 +126,7 @@ public class Connection {
 		SecretRef ref = kn.getSpec().getConnector().getAuthSecret();
 		Secret secret = kubeAdapter.getSecret(ref.getNamespace(), ref.getName());
 		
-		String username = new String(Base64.getDecoder().decode(secret.getData().getOrDefault("username", "")));
+		String username = new String(Base64.getDecoder().decode(secret.getData().getOrDefault("username", "bootsy")));
 		String password = new String(Base64.getDecoder().decode(secret.getData().getOrDefault("password", "")));
 		String _publicKey = new String(Base64.getDecoder().decode(secret.getData().getOrDefault("publicKey", "")));
 		String _privateKey = new String(Base64.getDecoder().decode(secret.getData().getOrDefault("privateKey", "")));
@@ -141,7 +141,7 @@ public class Connection {
 				OpenSSHKeyFile keyProvider = new OpenSSHKeyFile();
 				keyProvider.init(_privateKey, _publicKey); 
 				
-				ssh.authPublickey("bootsy", keyProvider);
+				ssh.authPublickey(username, keyProvider);
 				
 			} catch (Exception e) {
 				LOG.error("failed to load bootstrap keypair {}", e.getMessage());

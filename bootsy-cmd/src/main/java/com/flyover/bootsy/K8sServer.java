@@ -402,7 +402,7 @@ public class K8sServer {
 		
 	}
 
-	protected void bootstrapSsh() {
+	protected AuthSecret bootstrapSsh() {
 		
 		LOG.debug(String.format("bootstrapping host with ssh keys for deployment"));
 		
@@ -478,6 +478,18 @@ public class K8sServer {
 			
 		} catch (IOException e) {
 			throw new RuntimeException("failed to configure public key", e);
+		}
+		
+		try {
+			
+			AuthSecret secret = new AuthSecret();
+			secret.setPublickey(new String(Files.readAllBytes(publicKeyPath)));
+			secret.setPrivatekey(new String(Files.readAllBytes(privateKeyPath)));
+			
+			return secret;
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to load ssh keys", e);
 		}
 		
 	}
@@ -649,5 +661,28 @@ public class K8sServer {
 		}
 		
 	}
+
+	public static class AuthSecret {
 		
+		private String publickey;
+		private String privatekey;
+		
+		public String getPublickey() {
+			return publickey;
+		}
+		
+		public void setPublickey(String publickey) {
+			this.publickey = publickey;
+		}
+		
+		public String getPrivatekey() {
+			return privatekey;
+		}
+		
+		public void setPrivatekey(String privatekey) {
+			this.privatekey = privatekey;
+		}
+		
+	}
+	
 }
