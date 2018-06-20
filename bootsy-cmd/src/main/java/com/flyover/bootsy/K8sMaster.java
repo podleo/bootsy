@@ -72,7 +72,7 @@ public class K8sMaster extends K8sServer {
 		// verify docker is present on the host.
 		verifyDockerRunning();
 		// bootstrap host with ssh credentials
-		bootstrapSsh();
+		AuthSecret authSecret = bootstrapSsh();
 		// pull etcd image
 		pullImage("quay.io/coreos/etcd:v3.3.5");
 		// pull kubernetes image
@@ -100,7 +100,7 @@ public class K8sMaster extends K8sServer {
 		// deploy weave components
 		deployWeaveComponents();
 		// deploy bootsy components
-		deployBootsyComponents(ctx);
+		deployBootsyComponents(ctx, authSecret);
 		// write cluster configuration spec
 		writeKubeClusterConfiguration(ctx);
 		// deploy kubectl
@@ -387,7 +387,7 @@ public class K8sMaster extends K8sServer {
 		
 	}
 	
-	private void deployBootsyComponents(MasterContext ctx) {
+	private void deployBootsyComponents(MasterContext ctx, AuthSecret authSecret) {
 		
 		LOG.info("creating bootsy components");
 		
@@ -402,6 +402,8 @@ public class K8sMaster extends K8sServer {
 		context.put("ip_address", ctx.getMasterIP());
 		context.put("version", Version.KUBE_VERSION);
 		context.put("auth_secret_name", UUID.randomUUID().toString());
+		context.put("publicKey", Base64.getEncoder().encodeToString(authSecret.getPublickey().getBytes()));
+		context.put("privateKey", Base64.getEncoder().encodeToString(authSecret.getPrivatekey().getBytes()));
 		context.put("image", Version.image("bootsy-operator"));
 		
 		try {
@@ -542,6 +544,8 @@ public class K8sMaster extends K8sServer {
 				
 			} else {
 				
+				System.out.println(e.getResponseBodyAsString());
+				
 				throw e;
 				
 			}
@@ -593,7 +597,7 @@ public class K8sMaster extends K8sServer {
 		
 		Map<String, String> labels = new LinkedHashMap<>();
 		labels.put("bootsy-version", Version.KUBE_VERSION);
-		labels.put("bootsy-component", "kube-apiserver");
+		labels.put("bootsy-component", "kube-scheduler");
 		
 		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
