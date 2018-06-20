@@ -246,6 +246,8 @@ public class Operator {
 			
 			try {
 			
+				// write cluster configuration
+				updateClusterConfiguration(master, kn);
 				// write keys and certificates
 				installKeysAndCertificates(master, kn);
 
@@ -254,7 +256,7 @@ public class Operator {
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker pull %s", Version.image("bootsy-cmd")));
 				new Connection(kubeAdapter, kn).raw(String.format(
-						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
+						"sudo docker run --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
 						"%s --init --type=node --api-server-endpoint=https://%s", 
 							Version.image("bootsy-cmd"), masterIpAddress));
 			
@@ -291,22 +293,28 @@ public class Operator {
 			
 			try {
 				
+				updateClusterConfiguration(master, kn);
+				
 				// write keys and certificates
-				installKeysAndCertificates(master, kn);
+				if(!"master".equals(kn.getSpec().getType())) {
+					installKeysAndCertificates(master, kn);
+				}
 				
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker pull %s", Version.image("bootsy-cmd")));
-				new Connection(kubeAdapter, kn).raw(String.format(
-						"sudo docker run -d --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"%s --reconfigure --type=node --api-server-endpoint=https://%s", 
-							Version.image("bootsy-cmd"), masterIpAddress));
-			
+				
 				// mark kubelet as ready
 				kn.getSpec().setState("configured");
+				// update configuration checksum
 				kn.getSpec().setConfigurationChecksum(checksum(kubeAdapter.getKubeCluster("bootsy")));
 				// update the spec
 				kn = kubeAdapter.updateKubeNode(kn);
 				
+				new Connection(kubeAdapter, kn).raw(String.format(
+						"sudo docker run --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
+						"%s --reconfigure --type=%s --api-server-endpoint=https://%s", 
+							Version.image("bootsy-cmd"), kn.getSpec().getType(), masterIpAddress));
+			
 			} catch (Exception e) {
 				LOG.error("failed during kubelet reconfiguration {}", e.getMessage());
 				// stop node actions
@@ -360,12 +368,29 @@ public class Operator {
 		}
 		
 	}
+
+	private void updateClusterConfiguration(KubeNode master, KubeNode kn) {
+		
+		try {
+			
+			ClusterConfig config = kubeAdapter.getKubeCluster("bootsy").getSpec().getConfig();
+					
+			new Connection(kubeAdapter, kn).raw("mkdir -p /etc/k8s");
+
+			// write cluster configuration to the target node
+			new Connection(kubeAdapter, kn).put("bootsy.config", 
+					new ObjectMapper().writeValueAsBytes(config), "/etc/k8s/bootsy.config");
+			
+		} catch (Exception e) {
+			throw new RuntimeException("failed to write cluster configuration to host: " + e.getMessage(), e);
+		}
+		
+	}
 	
 	private void installKeysAndCertificates(KubeNode master, KubeNode kn) {
 		
 		try {
 			
-			ClusterConfig config = kubeAdapter.getKubeCluster("bootsy").getSpec().getConfig();
 			SecuritySpec security = master.getSpec().getSecurity();
 					
 			new Connection(kubeAdapter, kn).raw("mkdir -p /etc/k8s");
@@ -425,10 +450,6 @@ public class Operator {
 			
 			kn.getSpec().getSecurity().setKubeProxy(kubeProxySpec);
 
-			// write cluster configuration to the target node
-			new Connection(kubeAdapter, kn).put("bootsy.config", 
-					new ObjectMapper().writeValueAsBytes(config), "/etc/k8s/bootsy.config");
-			
 			// write keys and certificates to the target node			
 			write(out, serverKey);
 			new Connection(kubeAdapter, kn).put("server.key", out.toByteArray(), "/etc/k8s/server.key");
