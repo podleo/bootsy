@@ -16,6 +16,8 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -30,6 +32,7 @@ import org.bouncycastle.asn1.x509.GeneralName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -662,25 +665,31 @@ public class K8sMaster extends K8sServer {
 		ApiServer config = ctx.getClusterConfig().getApiserver();
 		config.setEtcdServers(String.format("https://%s:2379", ctx.getMasterIP()));
 		
+		List<String> command = new LinkedList<>();
+		
+		command.add(String.format("--bind-address=%s", config.getBindAddress()));
+		command.add(String.format("--secure-port=%s", config.getSecurePort()));
+		command.add(String.format("--service-cluster-ip-range=%s", config.getServiceClusterIpRange()));
+		command.add(String.format("--allow-privileged=%s", config.isAllowPrivileged()));
+		command.add(String.format("--anonymous-auth=%s", config.isAnonymousAuth()));
+		command.add(String.format("--authorization-mode=%s", config.getAuthorizationMode()));
+		command.add(String.format("--admission-control=%s", config.getAdmissionControl()));
+		command.add(String.format("--client-ca-file=%s", config.getClientCaFile()));
+		command.add(String.format("--tls-cert-file=%s", config.getTlsCertFile()));
+		command.add(String.format("--tls-private-key-file=%s", config.getTlsPrivateKeyFile()));
+		command.add(String.format("--etcd-servers=%s", config.getEtcdServers()));
+		command.add(String.format("--etcd-cafile=%s", config.getEtcdCafile()));
+		command.add(String.format("--etcd-certfile=%s", config.getEtcdCertfile()));
+		command.add(String.format("--etcd-keyfile=%s", config.getEtcdKeyfile()));
+		nullable(command, "--authentication-token-webhook-config-file", config.getAuthenticationTokenWebhookConfigFile());
+		nullable(command, "--authentication-token-webhook-cache-ttl", config.getAuthenticationTokenWebhookCacheTtl());
+		nullable(command, "--runtime-config", config.getRuntimeConfig());
+		
 		CreateContainerResponse res = docker.createContainerCmd(Version.image("kube-base"))
 			.withNetworkMode("host")
 			.withPortBindings(PortBinding.parse("8080:8080"), PortBinding.parse("443:443"))
 			.withEntrypoint("kube-apiserver")
-			.withCmd(
-				String.format("--bind-address=%s", config.getBindAddress()),
-				String.format("--secure-port=%s", config.getSecurePort()),
-				String.format("--service-cluster-ip-range=%s", config.getServiceClusterIpRange()),
-				String.format("--allow-privileged=%s", config.isAllowPrivileged()),
-				String.format("--anonymous-auth=%s", config.isAnonymousAuth()),
-				String.format("--authorization-mode=%s", config.getAuthorizationMode()),
-				String.format("--admission-control=%s", config.getAdmissionControl()),
-				String.format("--client-ca-file=%s", config.getClientCaFile()),
-				String.format("--tls-cert-file=%s", config.getTlsCertFile()),
-				String.format("--tls-private-key-file=%s", config.getTlsPrivateKeyFile()),
-				String.format("--etcd-servers=%s", config.getEtcdServers()),
-				String.format("--etcd-cafile=%s", config.getEtcdCafile()),
-				String.format("--etcd-certfile=%s", config.getEtcdCertfile()),
-				String.format("--etcd-keyfile=%s", config.getEtcdKeyfile()))
+			.withCmd(command)
 			.withVolumes(k8s)
 			.withBinds(new Bind("/etc/k8s", k8s, AccessMode.rw))
 			.withName(String.format("kube-apiserver_%s", UUID.randomUUID().toString()))
@@ -693,6 +702,14 @@ public class K8sMaster extends K8sServer {
 		docker.startContainerCmd(res.getId()).exec();
 		
 		LOG.debug(String.format("kube-apiserver container started id: %s", res.getId()));
+		
+	}
+	
+	private void nullable(List<String> list, String key, String value) {
+		
+		if(StringUtils.hasText(value)) {
+			list.add(String.format("%s=%s", key, value));
+		}
 		
 	}
 	
