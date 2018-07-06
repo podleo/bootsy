@@ -181,6 +181,12 @@ public class ClusterConfig {
 		private String etcdCertfile = "/etc/k8s/etcd-server.crt";
 		@JsonProperty(value = "etcd-keyfile")
 		private String etcdKeyfile = "/etc/k8s/etcd-server.key";
+		@JsonProperty("authentication-token-webhook-config-file")
+		private String authenticationTokenWebhookConfigFile;
+		@JsonProperty("authentication-token-webhook-cache-ttl")
+		private String authenticationTokenWebhookCacheTtl;
+		@JsonProperty("runtime-config")
+		private String runtimeConfig;
 		
 		public String getAdmissionControl() {
 			return admissionControl;
@@ -292,6 +298,32 @@ public class ClusterConfig {
 
 		public void setEtcdKeyfile(String etcdKeyfile) {
 			this.etcdKeyfile = etcdKeyfile;
+		}
+
+		public String getAuthenticationTokenWebhookConfigFile() {
+			return authenticationTokenWebhookConfigFile;
+		}
+
+		public void setAuthenticationTokenWebhookConfigFile(
+				String authenticationTokenWebhookConfigFile) {
+			this.authenticationTokenWebhookConfigFile = authenticationTokenWebhookConfigFile;
+		}
+
+		public String getAuthenticationTokenWebhookCacheTtl() {
+			return authenticationTokenWebhookCacheTtl;
+		}
+
+		public void setAuthenticationTokenWebhookCacheTtl(
+				String authenticationTokenWebhookCacheTtl) {
+			this.authenticationTokenWebhookCacheTtl = authenticationTokenWebhookCacheTtl;
+		}
+
+		public String getRuntimeConfig() {
+			return runtimeConfig;
+		}
+
+		public void setRuntimeConfig(String runtimeConfig) {
+			this.runtimeConfig = runtimeConfig;
 		}
 		
 	}
