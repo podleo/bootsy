@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>com.flyover</groupId>
 		<artifactId>bootsy</artifactId>
-		<version>1.10.3</version>
+		<version>1.10.5</version>
 	</parent>
 	<artifactId>bootsy-operator</artifactId>
 	<name>bootsy-operator</name>
