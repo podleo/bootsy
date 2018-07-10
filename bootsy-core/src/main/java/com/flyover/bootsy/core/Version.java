@@ -9,7 +9,7 @@ package com.flyover.bootsy.core;
  */
 public class Version {
 	
-	public static final String KUBE_VERSION = "1.10.5";
+	public static final String KUBE_VERSION = "1.11.0";
 	public static final String DOCKER_REPO = "portr.ctnr.ctl.io/bootsy";
 	
 	public static String image(String name) {

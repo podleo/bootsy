@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.flyover</groupId>
 	<artifactId>bootsy</artifactId>
-	<version>1.10.5</version>
+	<version>1.11.0</version>
 	<packaging>pom</packaging>
 	<name>bootsy</name>
 	<properties>
