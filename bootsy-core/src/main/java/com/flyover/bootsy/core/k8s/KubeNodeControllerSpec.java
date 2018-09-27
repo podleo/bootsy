@@ -17,8 +17,10 @@ public class KubeNodeControllerSpec extends Model {
 	private int count;
 	private String provider;
 	private Map<String, String> selectors = new LinkedHashMap<>();
+	private Map<String, String> labels = new LinkedHashMap<>();
 	private List<String> packages = new LinkedList<>();
-
+	private KubeletConfig kubelet = new KubeletConfig();
+	
 	public int getCount() {
 		return count;
 	}
@@ -43,12 +45,28 @@ public class KubeNodeControllerSpec extends Model {
 		this.selectors = selectors;
 	}
 
+	public Map<String, String> getLabels() {
+		return labels;
+	}
+
+	public void setLabels(Map<String, String> labels) {
+		this.labels = labels;
+	}
+
 	public List<String> getPackages() {
 		return packages;
 	}
 
 	public void setPackages(List<String> packages) {
 		this.packages = packages;
+	}
+	
+	public KubeletConfig getKubelet() {
+		return kubelet;
+	}
+
+	public void setKubelet(KubeletConfig kubelet) {
+		this.kubelet = kubelet;
 	}
 	
 }

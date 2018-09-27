@@ -2,7 +2,7 @@
 Description=kubelet
 
 [Service]
-ExecStart=/usr/bin/kubelet --address=$address --fail-swap-on=false --hostname-override=$ip_address --allow-privileged=$allow_privileged --network-plugin=$network_plugin --node-labels=$node_labels --tls-private-key-file=$tls_private_key_file --tls-cert-file=$tls_cert_file --kubeconfig=$kubeconfig
+ExecStart=/usr/bin/kubelet --address=$address --fail-swap-on=false --hostname-override=$ip_address --allow-privileged=$allow_privileged --network-plugin=$network_plugin --node-labels=$node_labels --tls-private-key-file=$tls_private_key_file --tls-cert-file=$tls_cert_file --kubeconfig=$kubeconfig --cluster-dns=$cluster_dns
 Restart=always
 
 [Install]
