@@ -217,6 +217,7 @@ public class K8sServer {
 		context.put("tls_cert_file", config.getKubelet().getTlsCertFile());
 		context.put("tls_cert_file", config.getKubelet().getTlsCertFile());
 		context.put("kubeconfig", config.getKubelet().getKubeconfig());
+		context.put("cluster_dns", config.getKubelet().getClusterDns());
 		
 		StringWriter kubeletServiceValue = new StringWriter();
 		

@@ -404,7 +404,7 @@ public class ClusterConfig {
 		private String address = "0.0.0.0";
 		@JsonProperty(value = "allow-privileged")
 		private boolean allowPrivileged = true;
-		@JsonProperty(value = "etwork-plugin")
+		@JsonProperty(value = "network-plugin")
 		private String networkPlugin = "cni";
 		@JsonProperty(value = "tls-private-key-file")
 		private String tlsPrivateKeyFile = "/etc/k8s/server.key";
@@ -412,6 +412,8 @@ public class ClusterConfig {
 		private String tlsCertFile = "/etc/k8s/server.crt ";
 		@JsonProperty(value = "kubeconfig")
 		private String kubeconfig = "/etc/k8s/kubeconfig.kubelet";
+		@JsonProperty(value = "cluster-dns")
+		private String clusterDns = "";
 		
 		public String getAddress() {
 			return address;
@@ -459,6 +461,14 @@ public class ClusterConfig {
 		
 		public void setKubeconfig(String kubeconfig) {
 			this.kubeconfig = kubeconfig;
+		}
+
+		public String getClusterDns() {
+			return clusterDns;
+		}
+
+		public void setClusterDns(String clusterDns) {
+			this.clusterDns = clusterDns;
 		}
 		
 	}
