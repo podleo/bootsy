@@ -5,6 +5,7 @@ package com.flyover.bootsy.operator.k8s;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.nio.charset.Charset;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -20,7 +21,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
@@ -39,6 +39,7 @@ import com.flyover.bootsy.core.k8s.KubeNodeControllerList;
 import com.flyover.bootsy.core.k8s.KubeNodeList;
 import com.flyover.bootsy.core.k8s.KubeNodeProvider;
 import com.flyover.bootsy.core.k8s.Secret;
+import com.google.common.io.Files;
 
 /**
  * @author mramach
@@ -48,7 +49,7 @@ public class KubeAdapter {
 	
 	private String endpoint;
 	private RestTemplate restTemplate;
-	@Value("file:/var/run/secrets/kubernetes.io/serviceaccount/token")
+	@Value("${kubernetes.authentication.token:file:/var/run/secrets/kubernetes.io/serviceaccount/token}")
 	private Resource token;
 	
 	public KubeAdapter(String endpoint) {
@@ -63,7 +64,7 @@ public class KubeAdapter {
 		
 		try {
 			
-			String t = IOUtils.toString(token.getInputStream(), "UTF-8");
+			String t = Files.toString(token.getFile(), Charset.defaultCharset()).trim();
 			
 			ClientHttpRequestInterceptor interceptor = (req, body, ex) -> {
 				

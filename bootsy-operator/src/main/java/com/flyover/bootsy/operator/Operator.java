@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flyover.bootsy.core.ClusterConfig;
@@ -41,6 +42,7 @@ import com.flyover.bootsy.core.Version;
 import com.flyover.bootsy.core.k8s.KubeNode;
 import com.flyover.bootsy.core.k8s.KubeNodeController;
 import com.flyover.bootsy.core.k8s.KubeNodeProvider;
+import com.flyover.bootsy.core.k8s.KubeletConfig;
 import com.flyover.bootsy.core.k8s.SecuritySpec;
 import com.flyover.bootsy.core.k8s.SecuritySpec.CertSpec;
 import com.flyover.bootsy.operator.k8s.KubeAdapter;
@@ -103,7 +105,7 @@ public class Operator {
 		}
 		
 		// ensure that all kn specs are updated with the latest checksum and packages.
-		String checksum = checksum(knc.getSpec().getPackages());
+		String checksum = checksum(knc.getSpec().getPackages(), knc.getSpec().getKubelet());
 		
 		nodes.stream()
 			.filter(n -> !checksum.equals(n.getSpec().getPackages().getChecksum()))
@@ -111,6 +113,8 @@ public class Operator {
 				
 				n.getSpec().getPackages().setPackages(knc.getSpec().getPackages());
 				n.getSpec().getPackages().setChecksum(checksum);
+				n.getSpec().setKubelet(knc.getSpec().getKubelet());
+				n.getMetadata().getLabels().putAll(knc.getSpec().getLabels());
 				
 				return n;
 				
@@ -252,17 +256,20 @@ public class Operator {
 				installKeysAndCertificates(master, kn);
 
 				// write cluster configuration
+				String labels = kn.getMetadata().getLabels().entrySet().stream()
+					.map(e -> String.format("%s=%s", e.getKey(), e.getValue()))
+						.collect(Collectors.joining(","));
 				
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker pull %s", Version.image("bootsy-cmd")));
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker run --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"%s --init --type=node --api-server-endpoint=https://%s", 
-							Version.image("bootsy-cmd"), masterIpAddress));
+						"%s --init --type=node --api-server-endpoint=https://%s --node-labels=%s", 
+							Version.image("bootsy-cmd"), masterIpAddress, labels));
 			
 				// mark kubelet as ready
 				kn.getSpec().setState("configured");
-				kn.getSpec().setConfigurationChecksum(checksum(kubeAdapter.getKubeCluster("bootsy")));
+				kn.getSpec().setConfigurationChecksum(checksum(clusterConfiguration(kn)));
 				// update the spec
 				kn = kubeAdapter.updateKubeNode(kn);
 				
@@ -306,14 +313,18 @@ public class Operator {
 				// mark kubelet as ready
 				kn.getSpec().setState("configured");
 				// update configuration checksum
-				kn.getSpec().setConfigurationChecksum(checksum(kubeAdapter.getKubeCluster("bootsy")));
+				kn.getSpec().setConfigurationChecksum(checksum(clusterConfiguration(kn)));
 				// update the spec
 				kn = kubeAdapter.updateKubeNode(kn);
 				
+				String labels = kn.getMetadata().getLabels().entrySet().stream()
+					.map(e -> String.format("%s=%s", e.getKey(), e.getValue()))
+						.collect(Collectors.joining(","));
+				
 				new Connection(kubeAdapter, kn).raw(String.format(
 						"sudo docker run --net=host -v /etc:/etc -v /root:/root -v /var/run:/var/run " + 
-						"%s --reconfigure --type=%s --api-server-endpoint=https://%s", 
-							Version.image("bootsy-cmd"), kn.getSpec().getType(), masterIpAddress));
+						"%s --reconfigure --type=%s --api-server-endpoint=https://%s --node-labels=%s", 
+							Version.image("bootsy-cmd"), kn.getSpec().getType(), masterIpAddress, labels));
 			
 			} catch (Exception e) {
 				LOG.error("failed during kubelet reconfiguration {}", e.getMessage());
@@ -327,7 +338,7 @@ public class Operator {
 		if("configured".equals(kn.getSpec().getState())) {
 
 			String checksum = kn.getSpec().getConfigurationChecksum();
-			String systemChecksum = checksum(kubeAdapter.getKubeCluster("bootsy"));
+			String systemChecksum = checksum(clusterConfiguration(kn));
 			
 			if(!systemChecksum.equals(checksum)) {	
 				
@@ -373,7 +384,7 @@ public class Operator {
 		
 		try {
 			
-			ClusterConfig config = kubeAdapter.getKubeCluster("bootsy").getSpec().getConfig();
+			ClusterConfig config = clusterConfiguration(kn);
 					
 			new Connection(kubeAdapter, kn).raw("mkdir -p /etc/k8s");
 
@@ -384,6 +395,20 @@ public class Operator {
 		} catch (Exception e) {
 			throw new RuntimeException("failed to write cluster configuration to host: " + e.getMessage(), e);
 		}
+		
+	}
+
+	private ClusterConfig clusterConfiguration(KubeNode kn) {
+		
+		ClusterConfig config = kubeAdapter.getKubeCluster("bootsy").getSpec().getConfig();
+		
+		KubeletConfig kubelet = kn.getSpec().getKubelet();
+		
+		if(StringUtils.hasText(kubelet.getClusterDns())) {
+			config.getKubelet().setClusterDns(kubelet.getClusterDns());
+		}
+		
+		return config;
 		
 	}
 	
@@ -528,13 +553,17 @@ public class Operator {
 		
 		LOG.debug("creating new KubeNode resource with selectors {}", knc.getSpec().getSelectors());
 		
+		String checksum = checksum(knc.getSpec().getPackages(), knc.getSpec().getKubelet());
+		
 		KubeNode kn = new KubeNode();
 		kn.getMetadata().setGenerateName("node-");
 		kn.getMetadata().setLabels(knc.getSpec().getSelectors());
 		kn.getSpec().setType("node");
 		kn.getSpec().setProvider(knc.getSpec().getProvider());
-		kn.getSpec().getPackages().setChecksum(checksum(knc.getSpec().getPackages()));
+		kn.getSpec().getPackages().setChecksum(checksum);
 		kn.getSpec().getPackages().setPackages(knc.getSpec().getPackages());
+		kn.getSpec().setKubelet(knc.getSpec().getKubelet());
+		kn.getMetadata().getLabels().putAll(knc.getSpec().getLabels());
 		
 		kubeAdapter.createKubeNode(kn);
 		
@@ -556,12 +585,22 @@ public class Operator {
 		
 	}
 	
-	private String checksum(Object o) {
+	private String checksum(Object...o) {
 		
 		try {
 			
 			MessageDigest md = MessageDigest.getInstance("MD5");
-			md.update(new ObjectMapper().writeValueAsBytes(o));
+			
+			Arrays.asList(o).forEach(o1 -> {
+				
+				try {
+					md.update(new ObjectMapper().writeValueAsBytes(o1));
+				} catch (Exception e) {
+					throw new RuntimeException("Failed to generate checksum.", e);
+				}
+				
+			});
+			
 			String checksum = Base64.getUrlEncoder().encodeToString(md.digest());
 			
 			return checksum;
