@@ -241,4 +241,4 @@ items:
           imagePullPolicy: Always
           args:
           - "--bootsy.k8s.endpoint=https://192.168.253.1"
-        serviceAccountName: bootsy 
+        serviceAccountName: bootsy

@@ -25,7 +25,7 @@ public class K8sNode extends K8sServer {
 		super();
 	}
 	
-	public void init(String apiServerEndpoint) {
+	public void init(String apiServerEndpoint, String labels) {
 		
 		// verify docker is present on the host.
 		verifyDockerRunning();
@@ -40,7 +40,7 @@ public class K8sNode extends K8sServer {
 		// deploy kubeconfig
 		deployKubeletKubeconfig(apiServerEndpoint);
 		// deploy kubelet
-		deployKubelet(apiServerEndpoint, "node=true");
+		deployKubelet(apiServerEndpoint, labels);
 		// deploy kubeconfig
 		deployKubeProxyKubeconfig(apiServerEndpoint);
 		// deploy kube-proxy
@@ -54,14 +54,14 @@ public class K8sNode extends K8sServer {
 
 	}
 	
-	public void update(String apiServerEndpoint) {
+	public void update(String apiServerEndpoint, String labels) {
 		
 		// verify docker is present on the host.
 		verifyDockerRunning();
 		// deploy kubeconfig
 		deployKubeletKubeconfig(apiServerEndpoint);
 		// deploy kubelet
-		deployKubelet(apiServerEndpoint, "master=true");
+		deployKubelet(apiServerEndpoint, labels);
 		// deploy kubeconfig
 		deployKubeProxyKubeconfig(apiServerEndpoint);
 		// deploy kube-proxy

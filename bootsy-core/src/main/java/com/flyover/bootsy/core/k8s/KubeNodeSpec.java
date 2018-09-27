@@ -26,6 +26,7 @@ public class KubeNodeSpec extends Model {
 	private String configurationChecksum = "";
 	private KubeNodePackageSpec packages = new KubeNodePackageSpec();
 	private SecuritySpec security = new SecuritySpec();
+	private KubeletConfig kubelet = new KubeletConfig();
 
 	public String getType() {
 		return type;
@@ -105,6 +106,14 @@ public class KubeNodeSpec extends Model {
 
 	public void setSecurity(SecuritySpec security) {
 		this.security = security;
+	}
+
+	public KubeletConfig getKubelet() {
+		return kubelet;
+	}
+
+	public void setKubelet(KubeletConfig kubelet) {
+		this.kubelet = kubelet;
 	}
 	
 }
