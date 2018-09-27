@@ -26,6 +26,9 @@ public class Application {
 		parser.addArgument("--api-server-endpoint")
 			.help("The api server endpoint to use during kubelet and kube-proxy initialization.")
 			.setDefault("https://127.0.0.1");
+		parser.addArgument("--node-labels")
+			.help("Labels that should be applied to the node in initialization.")
+			.setDefault("node=true");
     	
     	MutuallyExclusiveGroup group = parser.addMutuallyExclusiveGroup();
     	
@@ -53,11 +56,11 @@ public class Application {
 				
 			} else if(namespace.getBoolean("init") && "node".equals(namespace.getString("type"))) {
 				
-				new K8sNode().init(namespace.getString("api_server_endpoint"));
+				new K8sNode().init(namespace.getString("api_server_endpoint"), namespace.getString("node_labels"));
 				
 			} else if(namespace.getBoolean("reconfigure") && "node".equals(namespace.getString("type"))) {
 				
-				new K8sNode().update(namespace.getString("api_server_endpoint"));
+				new K8sNode().update(namespace.getString("api_server_endpoint"), namespace.getString("node_labels"));
 				
 			} else if(namespace.getBoolean("destroy")) {
 				
