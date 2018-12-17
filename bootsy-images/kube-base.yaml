@@ -1,0 +1,76 @@
+- hosts: localhost
+  vars:
+    kube_version: v1.13.1
+    kube_url: https://github.com/kubernetes/kubernetes/releases/download/{{ kube_version }}/kubernetes.tar.gz
+  environment:
+    KUBERNETES_SKIP_CONFIRM: true
+  tasks:
+
+  - name: install required packages
+    apt: name={{ item }} state=present update_cache=yes
+    with_items:
+    - tar
+    - wget
+
+  - name: install required pip packages
+    pip:
+      name: docker-py
+
+  - name: create build directory
+    file:
+      path: "./{{ kube_version }}"
+      state: directory
+
+  - name: check if distribution exists
+    stat:
+      path: ./{{ kube_version }}/kubernetes.tar.gz
+    register: st
+
+  - name: download distribution if missing
+    get_url: url={{ kube_url }} dest=./{{ kube_version }}
+    when: st.stat.exists == False
+
+  - name: check distribution extracted
+    stat:
+      path: ./{{ kube_version }}/kubernetes
+    register: st
+
+  - name: extract distribution
+    command: tar -xvf kubernetes.tar.gz
+    args:
+      chdir: "{{ kube_version }}"
+      warn: False
+    when: st.stat.exists == False
+
+  - name: download binaries
+    command: ./get-kube-binaries.sh
+    args:
+      chdir: "{{ kube_version }}/kubernetes/cluster/"
+
+  - name: check server binaries extracted
+    stat:
+      path: ./{{ kube_version }}/kubernetes/server/kubernetes/server/bin/kubelet
+    register: st
+
+  - name: extract server binaries
+    command: tar -xvf kubernetes-server-linux-amd64.tar.gz
+    args:
+      chdir: "{{ kube_version }}/kubernetes/server"
+      warn: False
+    when: st.stat.exists == False
+
+  - name: copy dockerfile and entrypoint file
+    copy:
+      src: "{{ item }}"
+      dest: ./{{ kube_version }}/{{ item }}
+      mode: u=rwx,g=rx,o=rx
+    with_items:
+    - Dockerfile
+    - copy.sh
+
+  - name: build docker image
+    docker_image:
+      path: ./{{ kube_version }}
+      name: portr.ctl.io/bootsy/kube-base
+      tag: "{{ kube_version }}"
+      push: no
