@@ -4,13 +4,13 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.flyover</groupId>
 	<artifactId>bootsy</artifactId>
-	<version>1.10.5</version>
+	<version>1.10</version>
 	<packaging>pom</packaging>
 	<name>bootsy</name>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<registry>portr.ctnr.ctl.io</registry>
-		<registryUrl>https://portr.ctnr.ctl.io/v2/</registryUrl>
+		<registry>portr.ctl.io</registry>
+		<registryUrl>https://portr.ctl.io/v2/</registryUrl>
 		<organization>bootsy</organization>
 	</properties>
 	<modules>
